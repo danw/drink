@@ -1,0 +1,1 @@
+-record (user, {username, admin = false, credits = 0, privs = none}).

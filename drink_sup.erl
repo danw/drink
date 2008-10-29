@@ -10,7 +10,7 @@ start_link (Args) ->
 	supervisor:start_link({local,?MODULE}, ?MODULE, Args).
 
 init ([]) ->
-	{ok, {{one_for_one, 3, 10},  % One for one restart, shutdown after 3 restarts within 10 seconds
+	{ok, {{one_for_one, 10, 3},  % One for one restart, shutdown after 10 restarts within 3 seconds
 		  [{machine_listener,    % Our first child, the drink_machine_listener
 			{drink_machine_listener, start_link, []},
 			permanent,			 % Always restart

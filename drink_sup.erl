@@ -16,7 +16,7 @@ init ([]) ->
 			permanent,			 % Always restart
 			100,				 % Allow 10 seconds for it to shutdown
 			worker,				 % It isn't a supervisor
-			[]},
+			[drink_machine_listener]},
 			
 		   {machines,			% The Supervisor for connected machines
 			{drink_machines_sup, start_link, []},

@@ -1,55 +1,54 @@
 -module (drink_machine_listener).
+-behaviour (gen_server).
+
 -include ("drink_config.hrl").
 
 -export ([start_link/0]).
 -export ([init/1]).
--export ([system_continue/3, system_terminate/4]).
+-export ([handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
+-export ([got_connection/1, got_socket_error/1]).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Main socket listener process that acts as an OTP behavior in the supervisor tree %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 start_link () ->
-	proc_lib:start_link(?MODULE, init, [self()]).
+	gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
-init (Parent) ->
-	register(?MODULE, self()),
-	Debug = sys:debug_options([]),
+init ([]) ->
 	case gen_tcp:listen(?LISTEN_PORT, [binary, {packet, line}, {reuseaddr, true}, {active, false}, {keepalive, true}, {send_timeout, 10}]) of
 		{ok, ListenSocket} ->
 			process_flag(trap_exit, true),
-			proc_lib:init_ack(Parent, {ok, self()}),
 			watch_listen_socket(ListenSocket),
-			loop(ListenSocket, Parent, Debug);
+			{ok, null};
 		{error, Reason} ->
-			exit(Reason)
+			{stop, Reason}
 	end.
 
-loop(ListenSocket, Parent, Debug) ->
-	receive
-		{got_connection, Socket} ->
-			case inet:peername(Socket) of
-				{ok, Remote} ->
-					io:format("Got connection from ~w~n", [Remote]);
-				{error, Reason} ->
-					io:format("Failed for some reason: ~p~n", [Reason])
-			end,
-			socket_watcher(Socket, {drink_machine_comm, start_link, []}),
-			loop(ListenSocket, Parent, Debug);
-		{got_socket_error, Reason} ->
-			io:format("Got socket error ~w~n", [Reason]),
-			exit(Reason);
-		{'EXIT', _Pid, Reason} ->
-			io:format("Exited for reason: ~w~n", [Reason]),
-			exit(Reason);
-		{system, From, Request} ->
-			sys:handle_system_msg(Request, From, Parent, ?MODULE, Debug, ListenSocket)
-	end.
+terminate (_Reason, _State) ->
+	ok.
 
-system_continue (Parent, Debug, State) ->
-	loop(State, Parent, Debug).
+code_change (_OldVsn, State, _Extra) when is_tuple(State) ->
+	{ok, State}.
 
-system_terminate (Reason, _Parent, _Debug, _State) ->
-	exit(Reason).
+handle_call (_Request, _From, State) ->
+	{noreply, State}.
+
+handle_info ({'EXIT', _Pid, Reason}, State) ->
+	error_logger:error_msg("Exited for reason: ~w~n", [Reason]),
+	{stop, Reason, State}.
+
+handle_cast ({got_connection, Socket}, State) ->
+	socket_watcher(Socket, {drink_machine_comm, start_link, []}),
+	{noreply, State};
+handle_cast ({got_socket_error, Reason}, State) ->
+	error_logger:error_msg("Got socket error ~w~n", [Reason]),
+	{stop, Reason, State}.
+
+got_connection (Socket) ->
+	gen_server:cast(?MODULE, {got_connection, Socket}).
+
+got_socket_error (Reason) ->
+	gen_server:cast(?MODULE, {got_socket_error, Reason}).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Process that Loops on gen_tcp:accept %
@@ -59,14 +58,14 @@ watch_accept_socket (Pid, ListenSocket) ->
 		{ok, Socket} ->
 			case gen_tcp:controlling_process(Socket, Pid) of
 				ok ->
-					Pid ! {got_connection, Socket};
+					?MODULE:got_connection(Socket);
 				{error, Reason} ->
 					error_logger:error_msg("Error transfering ownership: ~p~n", [Reason]),
 					gen_tcp:close(Socket)
 			end,
 			watch_accept_socket(Pid, ListenSocket);
 		{error, Reason} ->
-			Pid ! {got_socket_error, Reason}
+			?MODULE:got_socket_error(Reason)
 	end.
 
 watch_listen_socket (ListenSocket) ->
@@ -93,12 +92,10 @@ socket_watcher_impl ({Module, Fun, Args}) ->
 	end.
 
 socket_watcher_impl (Socket, ProcessId) ->
-%	io:format("Waiting on ~p to exit so we can close ~p~n", [ProcessId, Socket]),
 	receive
 		{'EXIT', ProcessId, _Reason} ->
 			gen_tcp:close(Socket)
 	end.
-%	io:format("Closed ~p~n", [Socket]).
 
 socket_watcher (Socket, Mfa) ->
 	Pid = spawn(fun() -> % De-link the watcher from us so we don't get the exit message

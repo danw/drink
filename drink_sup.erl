@@ -30,6 +30,6 @@ init ([]) ->
 		    permanent,			% Always restart
 		    100,				% Allow 100 seconds for it to shutdown
 		    worker,				% Not a supervisor
-		    [user_auth]},		% Uses the user_auth Module
+		    [user_auth]}		% Uses the user_auth Module
 		  ]
 		}}.

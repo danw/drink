@@ -8,9 +8,9 @@
 -export ([handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 -export ([got_connection/1, got_socket_error/1]).
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Main socket listener process that acts as an OTP behavior in the supervisor tree %
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Main socket listener process %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 start_link () ->
 	gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 

@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>currentDocument</key>
-	<string>drink_machine_listener.erl</string>
+	<string>user_auth.erl</string>
 	<key>documents</key>
 	<array>
 		<dict>
@@ -12,11 +12,9 @@
 			<key>name</key>
 			<string>edrink</string>
 			<key>regexFileFilter</key>
-			<string>!\.beam$</string>
+			<string>!(\.beam|\.tmproj)$</string>
 			<key>regexFolderFilter</key>
 			<string>!.*/(\.[^/]*|CVS|_darcs|_MTN|\{arch\}|blib|.*~\.nib|.*\.(framework|app|pbproj|pbxproj|xcode(proj)?|bundle))$</string>
-			<key>selected</key>
-			<true/>
 			<key>sourceDirectory</key>
 			<string></string>
 		</dict>
@@ -25,24 +23,39 @@
 	<integer>203</integer>
 	<key>metaData</key>
 	<dict>
-		<key>drink_machine_listener.erl</key>
+		<key>ldapconf.hrl</key>
 		<dict>
 			<key>caret</key>
 			<dict>
 				<key>column</key>
-				<integer>0</integer>
+				<integer>37</integer>
 				<key>line</key>
-				<integer>0</integer>
+				<integer>2</integer>
 			</dict>
 			<key>firstVisibleColumn</key>
 			<integer>0</integer>
 			<key>firstVisibleLine</key>
 			<integer>0</integer>
 		</dict>
+		<key>user_auth.erl</key>
+		<dict>
+			<key>caret</key>
+			<dict>
+				<key>column</key>
+				<integer>23</integer>
+				<key>line</key>
+				<integer>113</integer>
+			</dict>
+			<key>firstVisibleColumn</key>
+			<integer>0</integer>
+			<key>firstVisibleLine</key>
+			<integer>73</integer>
+		</dict>
 	</dict>
 	<key>openDocuments</key>
 	<array>
-		<string>drink_machine_listener.erl</string>
+		<string>user_auth.erl</string>
+		<string>ldapconf.hrl</string>
 	</array>
 	<key>showFileHierarchyDrawer</key>
 	<true/>

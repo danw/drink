@@ -31,12 +31,5 @@ init ([]) ->
 		    100,				% Allow 100 seconds for it to shutdown
 		    worker,				% Not a supervisor
 		    [user_auth]},		% Uses the user_auth Module
-		
-		   {users,				% The Supervisor for all user processes
-		    {users_sup, start_link, []},
-		    permanent,			% Always restart the supervisor
-		    infinity,			% Wait forever for it to shutdown
-		    supervisor,
-		    [users_sup]}		% Uses the users_sup Module
 		  ]
 		}}.

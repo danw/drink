@@ -2,7 +2,7 @@
 -behaviour (supervisor).
 
 -export ([start_link/0, init/1]).
--export ([machine_connected/2]).
+-export ([machine_connected/2, machines/0]).
 
 start_link () ->
 	supervisor:start_link({local, ?MODULE}, ?MODULE, []).
@@ -17,5 +17,14 @@ init ([]) ->
 			[drink_machine]}]
 		}}.
 
-machine_connected(MachineId, CommPid) ->
+machine_connected (MachineId, CommPid) ->
 	supervisor:start_child(?MODULE, [MachineId, CommPid]).
+
+machine_names([{_,Pid,_,_}|T]) ->
+	{registered_name, Name} = process_info(Pid, registered_name),
+	lists:append([Name], machine_names(T));
+machine_names([]) ->
+	[].
+
+machines () ->
+	machine_names(supervisor:which_children(?MODULE)).

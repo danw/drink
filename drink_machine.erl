@@ -5,7 +5,9 @@
 -export ([init/1]).
 -export ([handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 -export ([got_response/2]).
--export ([drop/2]).
+-export ([slots/1, slot_name/2, slot_available/2, slot_price/2, drop/2]).
+
+-include ("drink_config.hrl").
 
 -record (dmstate, {
 			machineid,
@@ -13,14 +15,23 @@
 			temperature,
 			droppid,
 			dropref,
-			timerref}).
+			timerref,
+			slot_table}).
 
 start_link (MachineId, CommPid) ->
 	gen_server:start_link({local, list_to_atom(lists:append("drink_machine_", atom_to_list(MachineId)))},
 							?MODULE, {MachineId, CommPid}, []).
 
 init ({MachineId, CommPid}) ->
-	{ok, {idle, #dmstate{machineid=MachineId,commpid=CommPid}}}.
+	{ok, MachineTable} = dets:open_file(machine_table, [{auto_save, 10000}]),
+	case dets:lookup(MachineTable, MachineId) of
+		[MachineRecord] ->
+			{MachineId, _Password, Slots} = MachineRecord,
+			SlotTable = ets:new(slot_table, [set, private, {keypos, 2}]),
+			{ok, {idle, #dmstate{machineid=MachineId,commpid=CommPid,slot_table=SlotTable}}};
+		[] ->
+			{stop, {error, invalid_machine}}
+	end.
 
 terminate (_Reason, _State) ->
 	ok.
@@ -41,6 +52,9 @@ handle_cast ({got_response, CommPid, Response}, {idle, State}) ->
 				{temperature, _DateTime, Temperature} ->
 					io:format("Got temperature: ~p~n", [Temperature]),
 					{noreply, {idle, State#dmstate{temperature=Temperature}}};
+				{slot_status, _Status} ->
+					% Update SlotTable
+					{noreply, {idle, State}};
 				Response ->
 					io:format("Unknown response: ~p~n", [Response]),
 					{noreply, {idle, State}}
@@ -79,6 +93,32 @@ handle_call ({drop, Slot}, {DropPid, DropRef}, {idle, State}) ->
 									[State#dmstate.machineid,Reason]),
 			{reply, {error, timer_err}, {idle, State}}
 	end;
+handle_call ({slot_name, Slot}, _From, {idle, State}) ->
+	case ets:lookup(State#dmstate.slot_table,Slot) of
+		[SlotInfo] ->
+			#slot_info{name=Name} = SlotInfo,
+			{reply, {ok, Name}, State};
+		[] ->
+			{reply, {error, invalid_slot}, State}
+	end;
+handle_call ({slot_available, Slot}, _From, {idle, State}) ->
+	case ets:lookup(State#dmstate.slot_table,Slot) of
+		[SlotInfo] ->
+			#slot_info{avail=Avail} = SlotInfo,
+			{reply, {ok, Avail}, State};
+		[] ->
+			{reply, {error, invalid_slot}, State}
+	end;
+handle_call ({slot_price, Slot}, _From, {idle, State}) ->
+	case ets:lookup(State#dmstate.slot_table,Slot) of
+		[SlotInfo] ->
+			#slot_info{price=Price} = SlotInfo,
+			{reply, {ok, Price}, State};
+		[] ->
+			{reply, {error, invalid_slot}, State}
+	end;
+handle_call ({slots}, _From, {idle, State}) ->
+	{reply, ets:tab2list(State#dmstate.slot_table), State};
 handle_call (_Request, _From, State) ->
 	{reply, {error, unknown}, State}.
 
@@ -100,3 +140,15 @@ got_response (MachinePid, Response) ->
 % API
 drop (MachinePid, Slot) when is_integer(Slot) ->
 	gen_server:call(MachinePid, {drop, Slot}, infinity).
+
+slot_name (MachinePid, Slot) when is_integer(Slot) ->
+	gen_server:call(MachinePid, {slot_name, Slot}).
+
+slot_available (MachinePid, Slot) when is_integer(Slot) ->
+	gen_server:call(MachinePid, {slot_available, Slot}).
+
+slot_price (MachinePid, Slot) when is_integer(Slot) ->
+	gen_server:call(MachinePid, {slot_price, Slot}).
+
+slots (MachinePid) ->
+	gen_server:call(MachinePid, {slots}).

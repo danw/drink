@@ -4,7 +4,7 @@
 -export ([start_link/0]).
 -export ([init/1]).
 -export ([handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
--export ([user/1, auth/2, admin/2, user_info/1, delete_ref/1]).
+-export ([user/1, auth/2, admin/2, user_info/1, delete_ref/1, drop/3]).
 
 -include ("ldapconf.hrl").
 -include ("user.hrl").
@@ -80,6 +80,27 @@ handle_call ({user_info, UserRef}, _From, State) when is_reference(UserRef) ->
 		{error, Reason} ->
 			{reply, {error, Reason}, State}
 	end;
+handle_call ({drop, UserRef, Machine, Slot}, _From, State) when is_reference(UserRef),
+																is_atom(Machine), is_integer(Slot) ->
+	case get_from_ref(UserRef, State) of
+		{ok, UserInfo, Perms} ->
+			case can_drop(Perms) of
+				true ->
+					case drink_machine:slot_available(Machine, Slot) of
+						{ok, true} ->
+							Result = drop_slot(UserInfo, Machine, Slot, State),
+							{reply, Result, State};
+						{ok, false} ->
+							{reply, {error, slot_empty}, State};
+						{error, Reason} ->
+							{reply, {error, Reason}, State}
+					end;
+				false ->
+					{reply, {error, permission_denied}, State}
+			end;
+		{error, Reason} ->
+			{reply, {error, Reason}, State}
+	end;
 
 handle_call (_Request, _From, State) ->
 	{reply, {error, unknown_call}, State}.
@@ -103,6 +124,7 @@ terminate (_Reason, _State) ->
 	ok.
 
 code_change (_OldVsn, State, _Extra) ->
+	io:format("Got codechange!~n"),
 	{ok, State}.
 
 %%%%%%%%%%%%%%%%
@@ -122,6 +144,9 @@ user_info(UserRef) when is_reference(UserRef) ->
 
 delete_ref(UserRef) when is_reference(UserRef) ->
 	gen_server:cast(?MODULE, {delete_ref, UserRef}).
+
+drop(UserRef, Machine, Slot) when is_reference(UserRef), is_atom(Machine), is_integer(Slot) ->
+	gen_server:call(?MODULE, {drop, UserRef, Machine, Slot}).
 
 %%%%%%%%%%%%%%%%%%%%
 % Internal Helpers %
@@ -150,6 +175,38 @@ ldap_attribute(Attr, [{Name, ValueArr}|T]) ->
 		false ->
 			ldap_attribute(Attr, T)
 	end.
+
+deduct(Username, _Cost, _State) when is_list(Username) ->
+	{ok};
+deduct(UserInfo, Cost, State) when is_tuple(UserInfo) ->
+	deduct(UserInfo#user.username, Cost, State).
+
+refund(Username, _Cost, _State) when is_list(Username) ->
+	{ok};
+refund(UserInfo, Cost, State) when is_tuple(UserInfo) ->
+	refund(UserInfo#user.username, Cost, State).
+
+drop_slot(UserInfo, Machine, Slot, State) when is_tuple(UserInfo), is_atom(Machine), is_integer(Slot) ->
+	Cost = drink_machine:slot_price(Machine, Slot),
+	case deduct(UserInfo, Cost, State) of
+		{ok} ->
+			case drink_machine:drop(Machine, Slot) of
+				{ok} ->
+					{ok};
+				{error, Reason} ->
+					refund(UserInfo, Cost, State),
+					{error, Reason}
+			end;
+		{error, Reason} ->
+			{error, Reason}
+	end.
+
+can_drop([drop|_T]) ->
+	true;
+can_drop([_Perm|T]) ->
+	can_drop(T);
+can_drop([]) ->
+	false.
 
 is_admin(UserRef, State) when is_reference(UserRef) ->
 	case get_from_ref(UserRef, State) of

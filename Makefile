@@ -3,15 +3,18 @@
 %.o: %.c
 	erlc -W $<
 
-ERL = erl -boot start_sasl
+ERL = erl -boot drink -sname drink
 
 all: check run
 
-run:
+run: drink.boot
 	${ERL}
 
 compile:
 	erlc -W +debug_info *.erl
+
+drink.boot: drink.rel compile
+	erlc -W drink.rel
 
 check: compile
 	dialyzer -c .

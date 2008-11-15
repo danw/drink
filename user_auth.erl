@@ -176,25 +176,42 @@ ldap_attribute(Attr, [{Name, ValueArr}|T]) ->
 			ldap_attribute(Attr, T)
 	end.
 
-deduct(Username, _Cost, _State) when is_list(Username) ->
-	{ok};
 deduct(UserInfo, Cost, State) when is_tuple(UserInfo) ->
-	deduct(UserInfo#user.username, Cost, State).
+	case get_user(UserInfo#user.username, State) of
+		{ok, User} ->
+			case User#user.credits of
+				B when B >= Cost ->
+					NewUserInfo = User#user{credits = B - Cost},
+					% TODO: change in ldap
+					ets:insert(State#uastate.usertable, NewUserInfo),
+					{ok, NewUserInfo};
+				_ ->
+					{error, poor}
+			end;
+		{error, Reason} ->
+			{error, Reason}
+	end.
 
-refund(Username, _Cost, _State) when is_list(Username) ->
-	{ok};
-refund(UserInfo, Cost, State) when is_tuple(UserInfo) ->
-	refund(UserInfo#user.username, Cost, State).
+refund(UserInfo, Amount, State) when is_tuple(UserInfo) ->
+	case get_user(UserInfo#user.username, State) of
+		{ok, User} ->
+			NewUserInfo = User#user{credits = User#user.credits + Amount},
+			% TODO: change in ldap
+			ets:insert(State#uastate.usertable, NewUserInfo),
+			{ok, NewUserInfo};
+		{error, Reason} ->
+			{error, Reason}
+	end.
 
 drop_slot(UserInfo, Machine, Slot, State) when is_tuple(UserInfo), is_atom(Machine), is_integer(Slot) ->
 	Cost = drink_machine:slot_price(Machine, Slot),
 	case deduct(UserInfo, Cost, State) of
-		{ok} ->
+		{ok, NewUserInfo} ->
 			case drink_machine:drop(Machine, Slot) of
 				{ok} ->
-					{ok};
+					{ok, NewUserInfo};
 				{error, Reason} ->
-					refund(UserInfo, Cost, State),
+					refund(NewUserInfo, Cost, State),
 					{error, Reason}
 			end;
 		{error, Reason} ->

@@ -3,7 +3,7 @@
 %.o: %.c
 	erlc -W $<
 
-ERL = erl -boot drink -sname drink
+ERL = erl -boot drink -sname drink -mnesia dir "\"`pwd`/mnesia_data\"" -mnesia schema_location disc
 
 all: check run
 
@@ -11,7 +11,7 @@ run: drink.boot
 	${ERL}
 
 compile:
-	erlc -W +debug_info *.erl
+	erlc -W +debug_info -I /usr/lib/erlang/lib/stdlib-1.14.5/include/ *.erl
 
 drink.boot: drink.rel compile
 	erlc -W drink.rel

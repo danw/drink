@@ -7,30 +7,35 @@
 -export ([got_response/2]).
 -export ([slots/1, slot_name/2, slot_available/2, slot_price/2, drop/2]).
 
--include ("drink_config.hrl").
+-include ("drink_mnesia.hrl").
+-include ("qlc.hrl").
 
 -record (dmstate, {
 			machineid,
 			commpid,
-			temperature,
 			droppid,
 			dropref,
+			dropslotnum,
 			timerref,
-			slot_table}).
+			record}).
 
 start_link (MachineId, CommPid) ->
 	gen_server:start_link({local, list_to_atom(lists:append("drink_machine_", atom_to_list(MachineId)))},
 							?MODULE, {MachineId, CommPid}, []).
 
 init ({MachineId, CommPid}) ->
-	{ok, MachineTable} = dets:open_file(machine_table, [{auto_save, 10000}]),
-	case dets:lookup(MachineTable, MachineId) of
-		[MachineRecord] ->
-			{MachineId, _Password, Slots} = MachineRecord,
-			SlotTable = ets:new(slot_table, [set, private, {keypos, 2}]),
-			{ok, {idle, #dmstate{machineid=MachineId,commpid=CommPid,slot_table=SlotTable}}};
-		[] ->
-			{stop, {error, invalid_machine}}
+	case mnesia:transaction(fun() -> mnesia:read({machine, MachineId}) end) of
+		{atomic, [MachineRecord]} ->
+			State = #dmstate{
+				machineid = MachineId,
+				commpid = CommPid,
+				record = MachineRecord
+			},
+			{ok, {idle, State}};
+		{atomic, []} ->
+			{stop, {error, invalid_machine}};
+		{aborted, Reason} ->
+			{stop, {error, Reason}}
 	end.
 
 terminate (_Reason, _State) ->
@@ -50,8 +55,18 @@ handle_cast ({got_response, CommPid, Response}, {idle, State}) ->
 					error_logger:error_msg("Drop Nack Received while not dropping!"),
 					{noreply, {idle, State}};
 				{temperature, _DateTime, Temperature} ->
-					io:format("Got temperature: ~p~n", [Temperature]),
-					{noreply, {idle, State#dmstate{temperature=Temperature}}};
+					T = #temperature{
+						machine = State#dmstate.machineid, 
+						time = erlang:universaltime(),
+						temperature = Temperature
+					},
+					case mnesia:transaction(fun() -> mnesia:write(T) end) of
+						{aborted, Reason} ->
+							error_logger:error_msg("mnesia Temperature Write failed: ~p", Reason);
+						{atomic, ok} ->
+							ok
+					end,
+					{noreply, {idle, State}};
 				{slot_status, _Status} ->
 					% Update SlotTable
 					{noreply, {idle, State}};
@@ -68,6 +83,7 @@ handle_cast ({got_response, CommPid, Response}, {dropping, State}) ->
 			case Response of
 				drop_ack ->
 					timer:cancel(State#dmstate.timerref),
+					decrement_slot_avail(State#dmstate.dropslotnum, State),
 					gen_server:reply(State#dmstate.droppid, {ok}),
 					io:format("Got a drop ack~n"),
 					{noreply, {idle, State}};
@@ -84,47 +100,57 @@ handle_cast (_Request, State) ->
 	{noreply, State}.
 
 handle_call ({drop, Slot}, {DropPid, DropRef}, {idle, State}) ->
-	case timer:send_after(timer:seconds(30), {timeout, DropRef}) of
-		{ok, Timer} ->
-			drink_machine_comm:send_command(State#dmstate.commpid, {drop, Slot}),
-			{noreply, {dropping, State#dmstate{timerref=Timer,dropref=DropRef,droppid={DropPid, DropRef}}}};
+	case get_slot_by_num(Slot, State) of
+		{ok, SlotInfo} when SlotInfo#slot.avail > 0 ->
+			case timer:send_after(timer:seconds(30), {timeout, DropRef}) of
+				{ok, Timer} ->
+					drink_machine_comm:send_command(State#dmstate.commpid, {drop, Slot}),
+					{noreply, {dropping, State#dmstate{timerref=Timer,dropref=DropRef,droppid={DropPid, DropRef},dropslotnum=Slot}}};
+				{error, Reason} ->
+					error_logger:error_msg("Timer couldn't be created for ~p drop(~p)",
+											[State#dmstate.machineid,Reason]),
+					{reply, {error, timer_err}, {idle, State}}
+			end;
+		{ok, _SlotInfo} ->
+			{reply, {error, not_available}, {idle, State}};
 		{error, Reason} ->
-			error_logger:error_msg("Timer couldn't be created for ~p drop(~p)",
-									[State#dmstate.machineid,Reason]),
-			{reply, {error, timer_err}, {idle, State}}
+			{reply, {error, Reason}, {idle, State}}
 	end;
 handle_call ({slot_name, Slot}, _From, {idle, State}) ->
-	case ets:lookup(State#dmstate.slot_table,Slot) of
-		[SlotInfo] ->
-			#slot_info{name=Name} = SlotInfo,
-			{reply, {ok, Name}, State};
-		[] ->
-			{reply, {error, invalid_slot}, State}
+	case get_slot_by_num(Slot, State) of
+		{ok, SlotInfo} ->
+			{reply, {ok, SlotInfo#slot.name}, {idle, State}};
+		{error, Reason} ->
+			{reply, {error, Reason}, {idle, State}}
 	end;
 handle_call ({slot_available, Slot}, _From, {idle, State}) ->
-	case ets:lookup(State#dmstate.slot_table,Slot) of
-		[SlotInfo] ->
-			#slot_info{avail=Avail} = SlotInfo,
-			{reply, {ok, Avail}, State};
-		[] ->
-			{reply, {error, invalid_slot}, State}
+	case get_slot_by_num(Slot, State) of
+		{ok, SlotInfo} ->
+			{reply, {ok, SlotInfo#slot.avail}, {idle, State}};
+		{error, Reason} ->
+			{reply, {error, Reason}, {idle, State}}
 	end;
 handle_call ({slot_price, Slot}, _From, {idle, State}) ->
-	case ets:lookup(State#dmstate.slot_table,Slot) of
-		[SlotInfo] ->
-			#slot_info{price=Price} = SlotInfo,
-			{reply, {ok, Price}, State};
-		[] ->
-			{reply, {error, invalid_slot}, State}
+	case get_slot_by_num(Slot, State) of
+		{ok, SlotInfo} ->
+			{reply, {ok, SlotInfo#slot.price}, {idle, State}};
+		{error, Reason} ->
+			{reply, {error, Reason}, {idle, State}}
 	end;
 handle_call ({slots}, _From, {idle, State}) ->
-	{reply, ets:tab2list(State#dmstate.slot_table), State};
+	Q = qlc:q([ X || X <- mnesia:table(slot), X#slot.machine =:= State#dmstate.machineid ]),
+	case mnesia:transaction(fun() -> qlc:eval(Q) end) of
+		{atomic, List} ->
+			{reply, {ok, List}, {idle, State}};
+		{aborted, Reason} ->
+			{reply, {error, Reason}, {idle, State}}
+	end;
 handle_call (_Request, _From, State) ->
 	{reply, {error, unknown}, State}.
 
-handle_info ({timeout, _DropRef},				{idle, State}) ->
+handle_info ({timeout, _DropRef}, {idle, State}) ->
 	{noreply, {idle, State}};
-handle_info ({timeout, DropRef},				{dropping, State}) ->
+handle_info ({timeout, DropRef}, {dropping, State}) ->
 	case State#dmstate.dropref of
 		DropRef ->
 			timer:cancel(State#dmstate.timerref),
@@ -152,3 +178,29 @@ slot_price (MachinePid, Slot) when is_integer(Slot) ->
 
 slots (MachinePid) ->
 	gen_server:call(MachinePid, {slots}).
+
+% Internal Helpers
+get_slot_by_num(Num, State) ->
+	Q = qlc:q([ X || X <- mnesia:table(slot), X#slot.machine =:= State#dmstate.machineid, X#slot.num =:= Num ]),
+	case mnesia:transaction(fun() -> qlc:eval(Q) end) of
+		{atomic, [Slot]} ->
+			{ok, Slot};
+		{atomic, []} ->
+			{error, invalid_slot};
+		{aborted, Reason} ->
+			{error, Reason}
+	end.
+
+decrement_slot_avail(SlotNum, State) ->
+	Qslot = qlc:q([ X || X <- mnesia:table(slot), X#slot.machine =:= State#dmstate.machineid, X#slot.num =:= SlotNum ]),
+	F = fun() ->
+		[Slot] = qlc:eval(Qslot),
+		NewSlotInfo = Slot#slot{avail = Slot#slot.avail - 1},
+		mnesia:write(NewSlotInfo)
+	end,
+	case mnesia:transaction(F) of
+		{atomic, ok} ->
+			ok;
+		{aborted, Reason} ->
+			{error, Reason}
+	end.

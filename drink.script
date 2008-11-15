@@ -1,4 +1,4 @@
-%% script generated at {2008,11,8} {19,56,40}
+%% script generated at {2008,11,15} {18,30,13}
 {script,
     {"drink_server","1"},
     [{preLoaded,[erlang,erl_prim_loader,prim_file,prim_inet,init,otp_ring0]},

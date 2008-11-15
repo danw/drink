@@ -4,6 +4,8 @@
 -export ([init/1]).
 -export ([send_command/2]).
 
+-include ("drink_mnesia.hrl").
+-include ("qlc.hrl").
 -record (dmcomm_state, {
 			socket,
 			machine}).
@@ -18,7 +20,9 @@ loop (waiting_for_socket, State) ->
 	receive
 		{socket, Socket} ->
 			inet:setopts(Socket, [{active, once}]),
-			loop(waiting_for_auth, State#dmcomm_state{socket=Socket})
+			loop(waiting_for_auth, State#dmcomm_state{socket=Socket});
+		_Else ->
+			loop(waiting_for_socket, State)
 	end;
 
 loop (waiting_for_auth, State) ->
@@ -26,7 +30,7 @@ loop (waiting_for_auth, State) ->
 	receive
 		{tcp, Socket, Data} ->
 			{ok, Remote} = inet:peername(Socket),
-			case machine_lookup(Remote,Data) of
+			case machine_lookup(Remote,binary_to_list(Data) -- "\r\n") of
 				{ok, MachineId} ->	% Got a valid machine
 					send(machine_ack, Socket),
 					inet:setopts(Socket, [{active, once}]),
@@ -48,7 +52,9 @@ loop (waiting_for_auth, State) ->
 			exit(tcp_closed); 		% At this point, if an error occurs, just exit
 		{tcp_error, Socket, Reason} ->
 			error_logger:error_msg("TCP Socket Error: ~p", [Reason]),
-			exit(Reason)
+			exit(Reason);
+		_Else ->
+			loop(waiting_for_auth, State)
 	end;
 
 loop (normal_op, State) ->
@@ -74,7 +80,9 @@ loop (normal_op, State) ->
 			exit(tcp_closed);
 		{tcp_error, Socket, Reason} ->
 			error_logger:error_msg("TCP Socket Error: ~p", [Reason]),
-			exit(Reason)
+			exit(Reason);
+		_Else ->
+			loop(normal_op, State)
 	end.
 
 % External API Call
@@ -82,14 +90,18 @@ send_command(MachineComm, Command) ->
 	MachineComm ! {send, self(), Command}.
 
 % Looking up a machine - Address, Password
-machine_lookup({_Address, _Port}, <<"password", _/binary>>) ->
-	{ok, bigdrink};
-machine_lookup({_Address, _Port}, <<"passwd", _/binary>>) ->
-	{ok, littledrink};
-machine_lookup({_Address, _Port}, <<"snackpass", _/binary>>) ->
-	{ok, snack};
-machine_lookup(_Address, _Data) ->
-	{error, badpass}.
+machine_lookup(From, Pass) when is_list(Pass) ->
+	machine_lookup(From, list_to_atom(Pass));
+machine_lookup({_Address, _Port}, Pass) when is_atom(Pass) ->
+	Q = qlc:q([ X#machine.machine || X <- mnesia:table(machine), X#machine.password =:= Pass ]),
+	case mnesia:transaction(fun() -> qlc:eval(Q) end) of
+		{atomic, [MachineId]} ->
+			{ok, MachineId};
+		{atomic, []} ->
+			{error, badpass};
+		{aborted, Reason} ->
+			{error, Reason}
+	end.
 
 % Send Command
 send(machine_ack, Socket) ->

@@ -4,7 +4,7 @@
 -export ([start_link/0]).
 -export ([init/1]).
 -export ([handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
--export ([user/1, auth/2, admin/2, user_info/1, delete_ref/1, drop/3]).
+-export ([user/1, auth/1, auth/2, admin/2, user_info/1, delete_ref/1, drop/3]).
 
 -include ("ldapconf.hrl").
 -include ("user.hrl").
@@ -58,6 +58,13 @@ handle_call ({auth, Username, Password}, _From, State) when is_list(Username), i
 				false ->
 					{reply, {error, badpass}, State}
 			end;
+		{error, Reason} ->
+			{reply, {error, Reason}, State}
+	end;
+handle_call ({auth, Ibutton}, _From, State) when is_list(Ibutton) ->
+	case get_user_from_ibutton(Ibutton, State) of
+		{ok, User} ->
+			{reply, {ok, create_user_ref(User, [read, drop, authed], State)}, State};
 		{error, Reason} ->
 			{reply, {error, Reason}, State}
 	end;
@@ -135,6 +142,9 @@ user(Username) when is_list(Username) ->
 
 auth(Username, Password) when is_list(Username), is_list(Password) ->
 	gen_server:call(?MODULE, {auth, Username, Password}).
+
+auth(Ibutton) when is_list(Ibutton) ->
+	gen_server:call(?MODULE, {auth, Ibutton}).
 
 admin(User, Username) when is_reference(User), is_list(Username) ->
 	gen_server:call(?MODULE, {admin, User, Username}).
@@ -295,3 +305,6 @@ get_user(Username, State) when is_list(Username) ->
 		[UserInfo] ->
 			{ok, UserInfo}
 	end.
+
+get_user_from_ibutton(Ibutton, _State) when is_list(Ibutton) ->
+	{error, not_implemented}.

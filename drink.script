@@ -1,4 +1,4 @@
-%% script generated at {2008,11,15} {18,30,13}
+%% script generated at {2008,11,16} {4,0,31}
 {script,
     {"drink_server","1"},
     [{preLoaded,[erlang,erl_prim_loader,prim_file,prim_inet,init,otp_ring0]},
@@ -457,7 +457,8 @@
                        [drink_sup,
                         drink_machines_sup,
                         drink_machine_listener,
-                        user_auth]},
+                        user_auth,
+                        sunday_server_listener]},
                    {applications,[kernel,stdlib,sasl]},
                    {included_applications,[]},
                    {env,[]},

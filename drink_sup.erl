@@ -1,6 +1,8 @@
 -module (drink_sup).
 -behaviour (supervisor).
 
+-include ("drink_config.hrl").
+
 -export ([start/0, start_link/1, init/1]).
 
 start () ->
@@ -12,11 +14,11 @@ start_link (Args) ->
 init ([]) ->
 	{ok, {{one_for_one, 10, 3},  % One for one restart, shutdown after 10 restarts within 3 seconds
 		  [{machine_listener,    % Our first child, the drink_machine_listener
-			{drink_machine_listener, start_link, []},
+			{gen_listener, start_link, [?MACHINE_LISTEN_PORT, {drink_machine_comm, start_link, []}]},
 			permanent,			 % Always restart
 			100,				 % Allow 10 seconds for it to shutdown
 			worker,				 % It isn't a supervisor
-			[drink_machine_listener]},
+			[gen_listener]},
 			
 		   {machines,			% The Supervisor for connected machines
 			{drink_machines_sup, start_link, []},
@@ -31,6 +33,20 @@ init ([]) ->
 		    100,				% Allow 100 seconds for it to shutdown
 		    worker,				% Not a supervisor
 		    [user_auth]},		% Uses the user_auth Module
+		
+		   {sunday_server_listener,
+		    {gen_listener, start_link, [?SUNDAY_SERVER_PORT, {sunday_server, start_link, []}]},
+		    permanent,
+		    100,
+		    worker,
+		    [gen_listener]},
+
+		   % {sunday_clients_sup,
+		   %  {sunday_clients_sup, start_link, []},
+		   %  permanent,
+		   %  infinity,
+		   %  supervisor,
+		   %  [sunday_clients_sup]},
 		   
 		   {web_server,
 			{drink_web, start_link, []},

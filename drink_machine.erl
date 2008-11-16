@@ -67,8 +67,8 @@ handle_cast ({got_response, CommPid, Response}, {idle, State}) ->
 							ok
 					end,
 					{noreply, {idle, State}};
-				{slot_status, _Status} ->
-					% Update SlotTable
+				{slot_status, Status} ->
+					update_slot_status(Status, State),
 					{noreply, {idle, State}};
 				Response ->
 					io:format("Unknown response: ~p~n", [Response]),
@@ -196,6 +196,7 @@ decrement_slot_avail(SlotNum, State) ->
 	F = fun() ->
 		[Slot] = qlc:eval(Qslot),
 		NewSlotInfo = Slot#slot{avail = Slot#slot.avail - 1},
+		mnesia:delete_object(Slot),
 		mnesia:write(NewSlotInfo)
 	end,
 	case mnesia:transaction(F) of
@@ -204,3 +205,41 @@ decrement_slot_avail(SlotNum, State) ->
 		{aborted, Reason} ->
 			{error, Reason}
 	end.
+
+update_slot_status(Status, State) ->
+	case mnesia:transaction(fun() ->
+		mnesia:write_lock_table(slot),
+		update_slot_status_mnesia(State#dmstate.machineid, Status) 
+	end) of
+		{atomic, ok} ->
+			ok;
+		{aborted, Reason} ->
+			error_logger:error_msg("Got error updating slot status: ~p", [Reason]),
+			{error, Reason}
+	end.
+
+update_slot_status_mnesia(_Machine, []) ->
+	ok;
+update_slot_status_mnesia(Machine, [{Slot, Status} | T]) ->
+	[SlotInfo] = qlc:eval(qlc:q([ X || X <- mnesia:table(slot), X#slot.machine =:= Machine, X#slot.num =:= Slot ])),
+	case Status of
+		1 ->
+			case SlotInfo#slot.avail of
+				0 ->
+					NewSlotInfo = SlotInfo#slot{avail = 1},
+					mnesia:delete_object(SlotInfo),
+					mnesia:write(NewSlotInfo);
+				_X ->
+					ok
+			end;
+		0 ->
+			case SlotInfo#slot.avail of
+				0 ->
+					ok;
+				_X ->
+					NewSlotInfo = SlotInfo#slot{avail = 0},
+					mnesia:delete_object(SlotInfo),
+					mnesia:write(NewSlotInfo)
+			end
+	end,
+	update_slot_status_mnesia(Machine, T).

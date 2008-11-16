@@ -1,1 +1,2 @@
--define(LISTEN_PORT, 4343).
+-define(MACHINE_LISTEN_PORT, 4343).
+-define(SUNDAY_SERVER_PORT, 4242).

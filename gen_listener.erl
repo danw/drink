@@ -1,27 +1,23 @@
--module (drink_machine_listener).
+-module (gen_listener).
 -behaviour (gen_server).
 
--include ("drink_config.hrl").
-
--export ([start_link/0]).
+-export ([start_link/2]).
 -export ([init/1]).
 -export ([handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
--export ([got_connection/1, got_socket_error/1]).
-
--define(LISTEN_PORT, 4343).
+-export ([got_connection/2, got_socket_error/2]).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Main socket listener process %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-start_link () ->
-	gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+start_link (Port, {Module, Fun, Args}) when is_integer(Port), is_atom(Module), is_atom(Fun) ->
+	gen_server:start_link({local, list_to_atom(atom_to_list(Module) ++ "_listener")}, ?MODULE, {Port, {Module, Fun, Args}}, []).
 
-init ([]) ->
-	case gen_tcp:listen(?LISTEN_PORT, [binary, {packet, line}, {reuseaddr, true}, {active, false}, {keepalive, true}, {send_timeout, 10}]) of
+init ({Port, Mfa}) ->
+	case gen_tcp:listen(Port, [binary, {packet, line}, {reuseaddr, true}, {active, false}, {keepalive, true}, {send_timeout, 10}]) of
 		{ok, ListenSocket} ->
 			process_flag(trap_exit, true),
 			watch_listen_socket(ListenSocket),
-			{ok, null};
+			{ok, Mfa};
 		{error, Reason} ->
 			{stop, Reason}
 	end.
@@ -39,18 +35,18 @@ handle_info ({'EXIT', _Pid, Reason}, State) ->
 	error_logger:error_msg("Exited for reason: ~w~n", [Reason]),
 	{stop, Reason, State}.
 
-handle_cast ({got_connection, Socket}, State) ->
-	socket_watcher(Socket, {drink_machine_comm, start_link, []}),
-	{noreply, State};
+handle_cast ({got_connection, Socket}, Mfa) ->
+	socket_watcher(Socket, Mfa),
+	{noreply, Mfa};
 handle_cast ({got_socket_error, Reason}, State) ->
 	error_logger:error_msg("Got socket error ~w~n", [Reason]),
 	{stop, Reason, State}.
 
-got_connection (Socket) ->
-	gen_server:cast(?MODULE, {got_connection, Socket}).
+got_connection (LMod, Socket) ->
+	gen_server:cast(LMod, {got_connection, Socket}).
 
-got_socket_error (Reason) ->
-	gen_server:cast(?MODULE, {got_socket_error, Reason}).
+got_socket_error (LMod, Reason) ->
+	gen_server:cast(LMod, {got_socket_error, Reason}).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Process that Loops on gen_tcp:accept %
@@ -60,14 +56,14 @@ watch_accept_socket (Pid, ListenSocket) ->
 		{ok, Socket} ->
 			case gen_tcp:controlling_process(Socket, Pid) of
 				ok ->
-					?MODULE:got_connection(Socket);
+					?MODULE:got_connection(Pid, Socket);
 				{error, Reason} ->
 					error_logger:error_msg("Error transfering ownership: ~p~n", [Reason]),
 					gen_tcp:close(Socket)
 			end,
 			watch_accept_socket(Pid, ListenSocket);
 		{error, Reason} ->
-			?MODULE:got_socket_error(Reason)
+			?MODULE:got_socket_error(Pid, Reason)
 	end.
 
 watch_listen_socket (ListenSocket) ->

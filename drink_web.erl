@@ -1,6 +1,8 @@
 -module (drink_web).
 -behaviour (gen_server).
 
+-include ("drink_mnesia.hrl").
+
 -export ([start_link/0, init/1, handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 
 start_link() ->
@@ -32,6 +34,21 @@ handle_message(Req) ->
 	handle(Req, Method, Path, Post).
 
 handle(Req, 'GET', "/", _) ->
-	Req:respond({200, [{"Content-Type", "text/html"}], "Testing Reload"});
+	Req:respond({200, [{"Content-Type", "text/html"}], "Testing"});
+handle(Req, 'GET', "/temps", _) ->
+	spawn(fun() ->
+			Res = Req:respond({200, [{"Content-Type", "text/plain"}], chunked}),
+			mnesia:subscribe({table, temperature, simple}),
+			temp_loop(Res)
+		end);
 handle(Req, 'GET', _, _) ->
 	Req:not_found().
+
+temp_loop(Res) ->
+	receive
+		{mnesia_table_event, {write, Temperature, _ActivityID}} ->
+			Res:write_chunk(io_lib:format("~p: ~p~n", [Temperature#temperature.machine, Temperature#temperature.temperature])),
+			temp_loop(Res);
+		_Else ->
+			temp_loop(Res)
+	end.

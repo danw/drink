@@ -92,12 +92,12 @@ handle_call ({drop, UserRef, Machine, Slot}, _From, State) when is_reference(Use
 	case get_from_ref(UserRef, State) of
 		{ok, UserInfo, Perms} ->
 			case can_drop(Perms) of
-				true ->
+				true -> 
 					case drink_machine:slot_available(Machine, Slot) of
-						{ok, true} ->
+						{ok, X} when X > 0 ->
 							Result = drop_slot(UserInfo, Machine, Slot, State),
 							{reply, Result, State};
-						{ok, false} ->
+						{ok, _X} ->
 							{reply, {error, slot_empty}, State};
 						{error, Reason} ->
 							{reply, {error, Reason}, State}
@@ -189,6 +189,7 @@ ldap_attribute(Attr, [{Name, ValueArr}|T]) ->
 deduct(UserInfo, Cost, State) when is_tuple(UserInfo) ->
 	case get_user(UserInfo#user.username, State) of
 		{ok, User} ->
+			io:format("Deducting ~p from ~p(~p)~n", [Cost, User#user.username, User#user.credits]),
 			case User#user.credits of
 				B when B >= Cost ->
 					NewUserInfo = User#user{credits = B - Cost},
@@ -214,12 +215,12 @@ refund(UserInfo, Amount, State) when is_tuple(UserInfo) ->
 	end.
 
 drop_slot(UserInfo, Machine, Slot, State) when is_tuple(UserInfo), is_atom(Machine), is_integer(Slot) ->
-	Cost = drink_machine:slot_price(Machine, Slot),
+	{ok, Cost} = drink_machine:slot_price(Machine, Slot),
 	case deduct(UserInfo, Cost, State) of
 		{ok, NewUserInfo} ->
 			case drink_machine:drop(Machine, Slot) of
 				{ok} ->
-					{ok, NewUserInfo};
+					ok;
 				{error, Reason} ->
 					refund(NewUserInfo, Cost, State),
 					{error, Reason}

@@ -1,3 +1,3 @@
--record (machine, {machine, password, available_sensor = false}).
+-record (machine, {machine, password, public_ip, available_sensor = false}).
 -record (slot, {machine, num, name, price = 10000, avail = 0}).
 -record (temperature, {machine, time, temperature}).

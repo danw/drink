@@ -62,6 +62,7 @@ handle_call ({drop, Slot}, _From, State) ->
 							{reply, {ok}, State};
 						{got_response, CommPid, drop_nack} ->
 							timer:cancel(Timer),
+							error_logger:error_msg("Drop nack'd on ~p~n", [State#dmstate.machineid]),
 							{reply, {error, drop_nack}, State}
 					end;
 				{error, Reason} ->

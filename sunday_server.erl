@@ -84,7 +84,7 @@ got_command("DROP", [SlotStr], State) ->
 			{error, 409, "Invalid slot.", State};
 		{SlotNum, _Rest} ->
 			case user_auth:drop(State#sunday_state.userref, State#sunday_state.machine, SlotNum) of
-				{ok} ->
+				ok ->
 					{ok, "", State};
 				{error, invalid_ref} ->
 					{error, 204, "You need to login.", State};

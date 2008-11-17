@@ -187,13 +187,26 @@ ldap_attribute(Attr, [{Name, ValueArr}|T]) ->
 			ldap_attribute(Attr, T)
 	end.
 
-deduct(UserInfo, Cost, State) when is_tuple(UserInfo) ->
+deduct(UserInfo, Cost, Reason, State) when is_tuple(UserInfo) ->
 	case get_user(UserInfo#user.username, State) of
 		{ok, User} ->
 			io:format("Deducting ~p from ~p(~p)~n", [Cost, User#user.username, User#user.credits]),
 			case User#user.credits of
 				B when B >= Cost ->
 					NewUserInfo = User#user{credits = B - Cost},
+					AdminUser = case Reason of
+					    {admin, AU, NewReason} ->
+					        AU;
+					    NewReason ->
+					        nil
+					end,
+					drink_mnesia:log_money(#money_log{
+					    time = erlang:universaltime(),
+					    username = UserInfo#user.username,
+					    amount = Cost,
+					    reason = NewReason,
+					    admin = AdminUser
+					}),
 					% TODO: change in ldap
 					ets:insert(State#uastate.usertable, NewUserInfo),
 					{ok, NewUserInfo};
@@ -204,10 +217,24 @@ deduct(UserInfo, Cost, State) when is_tuple(UserInfo) ->
 			{error, Reason}
 	end.
 
-refund(UserInfo, Amount, State) when is_tuple(UserInfo) ->
+refund(UserInfo, Amount, Reason, State) when is_tuple(UserInfo) ->
 	case get_user(UserInfo#user.username, State) of
 		{ok, User} ->
 			NewUserInfo = User#user{credits = User#user.credits + Amount},
+			AdminUser = case Reason of
+			    {admin, AU, NewReason} ->
+			        AU;
+			    NewReason ->
+			        nil
+			end,
+			drink_mnesia:log_money(#money_log{
+			    time = erlang:universaltime(),
+			    username = UserInfo#user.username,
+			    amount = Amount,
+			    reason = NewReason,
+			    admin = AdminUser,
+			    direction = in
+			}),
 			% TODO: change in ldap
 			ets:insert(State#uastate.usertable, NewUserInfo),
 			{ok, NewUserInfo};
@@ -218,13 +245,21 @@ refund(UserInfo, Amount, State) when is_tuple(UserInfo) ->
 
 drop_slot(UserInfo, Machine, Slot, State) when is_tuple(UserInfo), is_atom(Machine), is_integer(Slot) ->
 	{ok, SlotInfo} = drink_machine:slot_info(Machine, Slot),
-	case deduct(UserInfo, SlotInfo#slot.price, State) of
+	case deduct(UserInfo, SlotInfo#slot.price, drop, State) of
 		{ok, NewUserInfo} ->
+		    DropLog = #drop_log{
+		        machine = Machine,
+		        slot = Slot,
+		        username = UserInfo#user.username,
+		        time = erlang:universaltime()
+		    },
 			case drink_machine:drop(Machine, Slot) of
 				{ok} ->
+				    drink_mnesia:log_drop(DropLog),
 					ok;
 				{error, Reason} ->
-					refund(NewUserInfo, SlotInfo#slot.price, State),
+					refund(NewUserInfo, SlotInfo#slot.price, drop_error, State),
+					drink_mnesia:log_drop(DropLog#drop_log{status={error, Reason}}),
 					{error, Reason}
 			end;
 		{error, Reason} ->

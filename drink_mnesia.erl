@@ -1,5 +1,6 @@
 -module (drink_mnesia).
 -export ([initialize/0, upgrade/0]).
+-export ([log_drop/1, log_money/1]).
 
 -include ("drink_mnesia.hrl").
 
@@ -40,6 +41,24 @@ initialize() ->
 		{record_name, drop_log},
 		{index, [time, username, slot, status]},
 		{attributes, record_info(fields, drop_log)}]).
+
+log_drop(Drop) ->
+    case mnesia:transaction(fun() -> mnesia:write(Drop) end) of
+        {atomic, ok} ->
+            ok;
+        {aborted, Reason} ->
+            error_logger:error_msg("Drop Log Error! ~p~n", Reason),
+            {error, Reason}
+    end.
+
+log_money(Money) ->
+    case mnesia:transaction(fun() -> mnesia:write(Money) end) of
+        {atomic, ok} ->
+            ok;
+        {aborted, Reason} ->
+            error_logger:error_msg("Money Log Error! ~p~n", Reason),
+            {error, Reason}
+    end.
 
 upgrade() ->
 	%{atomic, ok} = mnesia:transform_table(machine, fun upgrade_machines/1, record_info(fields, machine), machine),

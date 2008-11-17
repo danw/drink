@@ -38,7 +38,7 @@ is_machine (MachineId) ->
 			true;
 		{atomic, []} ->
 			false;
-		{aborted, Reason} ->
+		{aborted, _Reason} ->
 			false
 	end.
 

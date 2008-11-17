@@ -32,7 +32,7 @@ loop (waiting_for_socket, State) ->
 				{atomic, []} ->
 					Machine = nil,
 					gen_tcp:send(Socket, "OK Welcome to the Erlang Drink Server\n");
-				{abort, _Reason} ->
+				{aborted, _Reason} ->
 					Machine = nil,
 					gen_tcp:send(Socket, "OK Welcome to the Erlang Drink Server\n")
 			end,
@@ -108,6 +108,24 @@ got_command("GETBALANCE", [User], State) ->
 	end;
 got_command("GETBALANCE", _, State) ->
 	{error, 406, "Invalid parameters.", State};
+got_command("IBUTTON", [Ibutton], State) ->
+	case State#sunday_state.userref of
+		nil ->
+			ok;
+		OldUserRef ->
+			user_auth:delete_ref(OldUserRef)
+	end,
+	NewState = State#sunday_state{user=nil},
+	case user_auth:auth(Ibutton) of
+		{ok, UserRef} ->
+			{ok, UserInfo} = user_auth:user_info(UserRef),
+			NewNewState = NewState#sunday_state{userref = UserRef},
+			{ok, "Credits: " ++ integer_to_list(UserInfo#user.credits), NewNewState};
+		{error, _Reason} ->
+			{error, 200, "Unknown error.", NewState}
+	end;
+got_command("IBUTTON", _, State) ->
+	{error, 406, "Invalid parameters.", State};
 got_command("LOCATION", _, State) ->
 	{error, 451, "Not implemented.", State}; % If someone wants to implement this...
 got_command("MACHINE", [MachineStr], State) ->
@@ -124,6 +142,12 @@ got_command("MACHINE", [MachineStr], State) ->
 			end
 	end;
 got_command("PASS", [Pass], State) ->
+	case State#sunday_state.userref of
+		nil ->
+			ok;
+		OldUserRef ->
+			user_auth:delete_ref(OldUserRef)
+	end,
 	case State#sunday_state.user of
 		nil ->
 			{error, 201, "USER command needs to be issued first.", State};
@@ -137,7 +161,7 @@ got_command("PASS", [Pass], State) ->
 				{error, badpass} ->
 					{error, 202, "Invalid username or password.", NewState};
 				{error, _Reason} ->
-					{error, 200, "Unknown Error.", NewState}
+					{error, 200, "Unknown error.", NewState}
 			end
 	end;
 got_command("PASS", _, State) ->
@@ -148,8 +172,28 @@ got_command("QUIT", _, State) ->
 %	{error, 451, "Not implemented.", State};
 got_command("RAND", _, State) ->
 	{error, 451, "Not implemented.", State}; % Delay 0
-got_command("STAT", [_Slot], State) ->
-	{error, 451, "Not implemented.", State};
+got_command("STAT", [Slot], State) ->
+	case State#sunday_state.machine of
+		nil ->
+			{error, 0, "Machine required.", State};
+		Machine ->
+			case drink_machines_sup:is_machine_alive(Machine) of
+				false ->
+					{error, 0, "Machine is down.", State};
+				true ->
+					case string:to_integer(Slot) of
+						{error, _Reason} ->
+							{error, 406, "Invalid parameters.", State};
+						{SlotNum, _Rest} ->
+							case drink_machine:slot_info(Machine, SlotNum) of
+								{ok, SlotInfo} ->
+									{raw, slot_status_reply([SlotInfo]), State};
+								{error, _Reason} ->
+									{error, 406, "Invalid parameters.", State}
+							end
+					end
+			end
+	end;
 got_command("STAT", _, State) ->
 	case State#sunday_state.machine of
 		nil ->
@@ -159,7 +203,7 @@ got_command("STAT", _, State) ->
 				false ->
 					{error, 0, "Machine is down.", State};
 				true ->
-					{ok, Slots} = drink_machine:slots(State#sunday_state.machine),
+					{ok, Slots} = drink_machine:slots(Machine),
 					{raw, slot_status_reply(lists:sort(Slots)), State}
 			end
 	end;
@@ -174,7 +218,7 @@ got_command("TEMP", _, State) ->
 				true ->
 					case drink_machine:temperature(Machine) of
 						{ok, Temp} ->
-							{ok, io_lib:format("~.2f", [Temp]), State};
+							{ok, io_lib:format("~.4f", [Temp]), State};
 						{error, no_temp} ->
 							{error, 351, "Unable to determine temperature.", State}
 					end

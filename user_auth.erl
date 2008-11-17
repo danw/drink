@@ -8,6 +8,7 @@
 
 -include ("ldapconf.hrl").
 -include ("user.hrl").
+-include ("drink_mnesia.hrl").
 
 -record (uastate, {ldapconn,reftable,usertable}).
 
@@ -93,8 +94,8 @@ handle_call ({drop, UserRef, Machine, Slot}, _From, State) when is_reference(Use
 		{ok, UserInfo, Perms} ->
 			case can_drop(Perms) of
 				true -> 
-					case drink_machine:slot_available(Machine, Slot) of
-						{ok, X} when X > 0 ->
+					case drink_machine:slot_info(Machine, Slot) of
+						{ok, SlotInfo} when SlotInfo#slot.avail > 0 ->
 							Result = drop_slot(UserInfo, Machine, Slot, State),
 							{reply, Result, State};
 						{ok, _X} ->
@@ -215,14 +216,14 @@ refund(UserInfo, Amount, State) when is_tuple(UserInfo) ->
 	end.
 
 drop_slot(UserInfo, Machine, Slot, State) when is_tuple(UserInfo), is_atom(Machine), is_integer(Slot) ->
-	{ok, Cost} = drink_machine:slot_price(Machine, Slot),
-	case deduct(UserInfo, Cost, State) of
+	{ok, SlotInfo} = drink_machine:slot_info(Machine, Slot),
+	case deduct(UserInfo, SlotInfo#slot.price, State) of
 		{ok, NewUserInfo} ->
 			case drink_machine:drop(Machine, Slot) of
 				{ok} ->
 					ok;
 				{error, Reason} ->
-					refund(NewUserInfo, Cost, State),
+					refund(NewUserInfo, SlotInfo#slot.price, State),
 					{error, Reason}
 			end;
 		{error, Reason} ->

@@ -33,11 +33,11 @@ upgrade() ->
 	%{atomic, ok} = mnesia:transform_table(temperature, fun upgrade_temperatures/1, record_info(fields, slot), slot).
 	ok.
 
-upgrade_machines(X) ->
-	X.
-
-upgrade_slots(X) ->
-	X.
-
-upgrade_temperatures(X) ->
-	X.
+% upgrade_machines(X) ->
+% 	X.
+% 
+% upgrade_slots(X) ->
+% 	X.
+% 
+% upgrade_temperatures(X) ->
+% 	X.

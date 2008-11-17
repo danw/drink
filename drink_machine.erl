@@ -13,10 +13,6 @@
 -record (dmstate, {
 			machineid,
 			commpid,
-			droppid,
-			dropref,
-			dropslotnum,
-			timerref,
 			record,
 			latest_temp = nil}).
 
@@ -31,7 +27,7 @@ init ({MachineId, CommPid}) ->
 				commpid = CommPid,
 				record = MachineRecord
 			},
-			{ok, {idle, State}};
+			{ok, State};
 		{atomic, []} ->
 			{stop, {error, invalid_machine}};
 		{aborted, Reason} ->
@@ -47,74 +43,75 @@ code_change (_OldVsn, State, _Extra) when is_tuple(State) ->
 handle_cast (_Request, State) ->
 	{noreply, State}.
 
-handle_call ({drop, Slot}, {DropPid, DropRef}, {idle, State}) ->
+handle_call ({drop, Slot}, _From, State) ->
 	case get_slot_by_num(Slot, State) of
 		{ok, SlotInfo} when SlotInfo#slot.avail > 0 ->
-			case timer:send_after(timer:seconds(30), {timeout, DropRef}) of
+			Ref = make_ref(),
+			case timer:send_after(timer:seconds(30), {timeout, Ref}) of
 				{ok, Timer} ->
 					CommPid = State#dmstate.commpid,
 					drink_machine_comm:send_command(CommPid, {drop, Slot}),
 					receive
-						{timeout, DropRef} ->
+						{timeout, Ref} ->
 							timer:cancel(Timer),
 							error_logger:error_msg("Drop timed out on ~p~n", [State#dmstate.machineid]),
-							{reply, {error, timeout}, {idle, State}};
+							{reply, {error, timeout}, State};
 						{got_response, CommPid, drop_ack} ->
 							timer:cancel(Timer),
 							decrement_slot_avail(Slot, State),
-							{reply, {ok}, {idle, State}};
+							{reply, {ok}, State};
 						{got_response, CommPid, drop_nack} ->
 							timer:cancel(Timer),
-							{reply, {error, drop_nack}, {idle, State}}
+							{reply, {error, drop_nack}, State}
 					end;
 				{error, Reason} ->
 					error_logger:error_msg("Timer couldn't be created for ~p drop(~p)",
 											[State#dmstate.machineid,Reason]),
-					{reply, {error, timer_err}, {idle, State}}
+					{reply, {error, timer_err}, State}
 			end;
 		{ok, _SlotInfo} ->
-			{reply, {error, not_available}, {idle, State}};
+			{reply, {error, not_available}, State};
 		{error, Reason} ->
-			{reply, {error, Reason}, {idle, State}}
+			{reply, {error, Reason}, State}
 	end;
-handle_call ({slots}, _From, {S, State}) ->
+handle_call ({slots}, _From, State) ->
 	Q = qlc:q([ X || X <- mnesia:table(slot), X#slot.machine =:= State#dmstate.machineid ]),
 	case mnesia:transaction(fun() -> qlc:eval(Q) end) of
 		{atomic, List} ->
-			{reply, {ok, List}, {S, State}};
+			{reply, {ok, List}, State};
 		{aborted, Reason} ->
-			{reply, {error, Reason}, {S, State}}
+			{reply, {error, Reason}, State}
 	end;
-handle_call ({slot_info, SlotNum}, _From, {S, State}) ->
+handle_call ({slot_info, SlotNum}, _From, State) ->
 	Q = qlc:q([ X || X <- mnesia:table(slot), X#slot.machine =:= State#dmstate.machineid, X#slot.num =:= SlotNum]),
 	case mnesia:transaction(fun() -> qlc:eval(Q) end) of
 		{atomic, [SlotInfo]} ->
-			{reply, {ok, SlotInfo}, {S, State}};
+			{reply, {ok, SlotInfo}, State};
 		{atomic, _List} ->
-			{reply, {error, invalid_slot}, {S, State}};
+			{reply, {error, invalid_slot}, State};
 		{aborted, Reason} ->
-			{reply, {error, Reason}, {S, State}}
+			{reply, {error, Reason}, State}
 	end;
-handle_call ({temp}, _From, {S, State}) ->
+handle_call ({temp}, _From, State) ->
 	case State#dmstate.latest_temp of
 		nil ->
-			{reply, {error, no_temp}, {S, State}};
+			{reply, {error, no_temp}, State};
 		Temp ->
-			{reply, {ok, Temp}, {S, State}}
+			{reply, {ok, Temp}, State}
 	end;
 handle_call (_Request, _From, State) ->
 	{reply, {error, unknown}, State}.
 
-handle_info ({got_response, CommPid, Response}, {idle, State}) ->
+handle_info ({got_response, CommPid, Response}, State) ->
 	case State#dmstate.commpid of
 		CommPid ->
 			case Response of
 				drop_ack ->
 					error_logger:error_msg("Drop Ack Received while not dropping!"),
-					{noreply, {idle, State}};
+					{noreply, State};
 				drop_nack ->
 					error_logger:error_msg("Drop Nack Received while not dropping!"),
-					{noreply, {idle, State}};
+					{noreply, State};
 				{temperature, _DateTime, Temperature} ->
 					T = #temperature{
 						machine = State#dmstate.machineid, 
@@ -127,21 +124,21 @@ handle_info ({got_response, CommPid, Response}, {idle, State}) ->
 						{atomic, ok} ->
 							ok
 					end,
-					{noreply, {idle, State#dmstate{latest_temp = Temperature}}};
+					{noreply, State#dmstate{latest_temp = Temperature}};
 				{slot_status, Status} ->
 					update_slot_status(Status, State),
-					{noreply, {idle, State}};
+					{noreply, State};
 				Response ->
 					io:format("Unknown response: ~p~n", [Response]),
-					{noreply, {idle, State}}
+					{noreply, State}
 			end;
 		_Else ->
-			{noreply, {idle, State}}
+			{noreply, State}
 	end;
-handle_info ({timeout, _DropRef}, {idle, State}) ->
-	{noreply, {idle, State}};
+handle_info ({timeout, _DropRef}, State) ->
+	{noreply, State};
 handle_info (_, State) ->
-	{noreply, {idle, State}}.
+	{noreply, State}.
 
 % Callback from Drink Machine Comm
 got_response (MachinePid, Response) ->

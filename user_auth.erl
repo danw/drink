@@ -24,8 +24,9 @@ init ([]) ->
 	UserTable = ets:new(userinfo, [set, private, {keypos, 2}]),
 	case eldap:open([?LDAPHOST], [	
 %									{log, fun(_L, F, A) -> error_logger:info_msg(F, A) end},
-%	 								{ssl, true}, Probably need to get self signed certs working...
-%									{port, 636},
+	 								{ssl, true},
+	 								{ssl_opts, [{cacertfile, "cshca.crt"}]},
+									{port, 636},
 									{timeout, 5000}]) of
 		{ok, LdapConn} ->
 			case eldap:simple_bind(LdapConn, ?LDAPBINDDN, ?LDAPBINDPASS) of

@@ -5,7 +5,7 @@
 -export ([init/1]).
 -export ([handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 -export ([got_response/2]).
--export ([slots/1, slot_name/2, slot_available/2, slot_price/2, drop/2]).
+-export ([slots/1, slot_name/2, slot_available/2, slot_price/2, drop/2, temperature/1]).
 
 -include ("drink_mnesia.hrl").
 -include ("qlc.hrl").
@@ -17,11 +17,11 @@
 			dropref,
 			dropslotnum,
 			timerref,
-			record}).
+			record,
+			latest_temp = nil}).
 
 start_link (MachineId, CommPid) ->
-	gen_server:start_link({local, list_to_atom(lists:append("drink_machine_", atom_to_list(MachineId)))},
-							?MODULE, {MachineId, CommPid}, []).
+	gen_server:start_link({local, MachineId}, ?MODULE, {MachineId, CommPid}, []).
 
 init ({MachineId, CommPid}) ->
 	case mnesia:transaction(fun() -> mnesia:read({machine, MachineId}) end) of
@@ -66,7 +66,7 @@ handle_cast ({got_response, CommPid, Response}, {idle, State}) ->
 						{atomic, ok} ->
 							ok
 					end,
-					{noreply, {idle, State}};
+					{noreply, {idle, State#dmstate{latest_temp = Temperature}}};
 				{slot_status, Status} ->
 					update_slot_status(Status, State),
 					{noreply, {idle, State}};
@@ -99,6 +99,8 @@ handle_cast ({got_response, CommPid, Response}, {dropping, State}) ->
 handle_cast (_Request, State) ->
 	{noreply, State}.
 
+handle_call ({drop, Slot}, {DropPid, DropRef}, {dropping, State}) ->
+	{reply, {error, dropping}, {dropping, State}}; % SHIT! we need to pause this call somehow...
 handle_call ({drop, Slot}, {DropPid, DropRef}, {idle, State}) ->
 	case get_slot_by_num(Slot, State) of
 		{ok, SlotInfo} when SlotInfo#slot.avail > 0 ->
@@ -116,34 +118,41 @@ handle_call ({drop, Slot}, {DropPid, DropRef}, {idle, State}) ->
 		{error, Reason} ->
 			{reply, {error, Reason}, {idle, State}}
 	end;
-handle_call ({slot_name, Slot}, _From, {idle, State}) ->
+handle_call ({slot_name, Slot}, _From, {S, State}) ->
 	case get_slot_by_num(Slot, State) of
 		{ok, SlotInfo} ->
-			{reply, {ok, SlotInfo#slot.name}, {idle, State}};
+			{reply, {ok, SlotInfo#slot.name}, {S, State}};
 		{error, Reason} ->
-			{reply, {error, Reason}, {idle, State}}
+			{reply, {error, Reason}, {S, State}}
 	end;
-handle_call ({slot_available, Slot}, _From, {idle, State}) ->
+handle_call ({slot_available, Slot}, _From, {S, State}) ->
 	case get_slot_by_num(Slot, State) of
 		{ok, SlotInfo} ->
-			{reply, {ok, SlotInfo#slot.avail}, {idle, State}};
+			{reply, {ok, SlotInfo#slot.avail}, {S, State}};
 		{error, Reason} ->
-			{reply, {error, Reason}, {idle, State}}
+			{reply, {error, Reason}, {S, State}}
 	end;
-handle_call ({slot_price, Slot}, _From, {idle, State}) ->
+handle_call ({slot_price, Slot}, _From, {S, State}) ->
 	case get_slot_by_num(Slot, State) of
 		{ok, SlotInfo} ->
-			{reply, {ok, SlotInfo#slot.price}, {idle, State}};
+			{reply, {ok, SlotInfo#slot.price}, {S, State}};
 		{error, Reason} ->
-			{reply, {error, Reason}, {idle, State}}
+			{reply, {error, Reason}, {S, State}}
 	end;
-handle_call ({slots}, _From, {idle, State}) ->
+handle_call ({slots}, _From, {S, State}) ->
 	Q = qlc:q([ X || X <- mnesia:table(slot), X#slot.machine =:= State#dmstate.machineid ]),
 	case mnesia:transaction(fun() -> qlc:eval(Q) end) of
 		{atomic, List} ->
-			{reply, {ok, List}, {idle, State}};
+			{reply, {ok, List}, {S, State}};
 		{aborted, Reason} ->
-			{reply, {error, Reason}, {idle, State}}
+			{reply, {error, Reason}, {S, State}}
+	end;
+handle_call ({temp}, _From, {S, State}) ->
+	case State#dmstate.latest_temp of
+		nil ->
+			{reply, {error, no_temp}, {S, State}};
+		Temp ->
+			{reply, {ok, Temp}, {S, State}}
 	end;
 handle_call (_Request, _From, State) ->
 	{reply, {error, unknown}, State}.
@@ -178,6 +187,9 @@ slot_price (MachinePid, Slot) when is_integer(Slot) ->
 
 slots (MachinePid) ->
 	gen_server:call(MachinePid, {slots}).
+
+temperature (MachinePid) ->
+	gen_server:call(MachinePid, {temp}).
 
 % Internal Helpers
 get_slot_by_num(Num, State) ->

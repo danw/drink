@@ -2,7 +2,10 @@
 -behaviour (supervisor).
 
 -export ([start_link/0, init/1]).
--export ([machine_connected/2, machines/0]).
+-export ([machine_connected/2, machines/0, is_machine/1, is_machine_alive/1]).
+
+-include ("drink_mnesia.hrl").
+-include ("qlc.hrl").
 
 start_link () ->
 	supervisor:start_link({local, ?MODULE}, ?MODULE, []).
@@ -28,3 +31,21 @@ machine_names([]) ->
 
 machines () ->
 	machine_names(supervisor:which_children(?MODULE)).
+
+is_machine (MachineId) ->
+	case mnesia:transaction(fun() -> mnesia:read({machine, MachineId}) end) of
+		{atomic, [_MachineRec]} ->
+			true;
+		{atomic, []} ->
+			false;
+		{aborted, Reason} ->
+			false
+	end.
+
+is_machine_alive (MachineId) ->
+	case whereis(MachineId) of
+		undefined ->
+			false;
+		Pid ->
+			is_process_alive(Pid)
+	end.

@@ -54,7 +54,7 @@ handle_call ({user, Username}, _From, State) when is_list(Username) ->
 handle_call ({auth, Username, Password}, _From, State) when is_list(Username), is_list(Password) ->
 	case get_user(Username, State) of
 		{ok, User} ->
-			case string:equal(Password, "magicpass") of
+			case check_pass(Username, Password) of
 				true ->
 					{reply, {ok, create_user_ref(User, [read, drop, authed], State)}, State};
 				false ->
@@ -347,3 +347,11 @@ get_user(Username, State) when is_list(Username) ->
 
 get_user_from_ibutton(Ibutton, _State) when is_list(Ibutton) ->
 	{error, not_implemented}.
+
+check_pass(User, Pass) ->
+    case epam:authenticate("drink", User, Pass) of
+        true ->
+            true;
+        _Else ->
+            false
+    end.

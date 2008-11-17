@@ -41,12 +41,12 @@ init ([]) ->
 		    worker,
 		    [gen_listener]},
 
-		   % {sunday_clients_sup,
-		   %  {sunday_clients_sup, start_link, []},
-		   %  permanent,
-		   %  infinity,
-		   %  supervisor,
-		   %  [sunday_clients_sup]},
+           {pam_auth,
+            {epam, start_link, []},
+            permanent,
+            100,
+            worker,
+            [epam]},
 		   
 		   {web_server,
 			{drink_web, start_link, []},

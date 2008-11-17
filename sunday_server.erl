@@ -173,56 +173,44 @@ got_command("QUIT", _, State) ->
 got_command("RAND", _, State) ->
 	{error, 451, "Not implemented.", State}; % Delay 0
 got_command("STAT", [Slot], State) ->
-	case State#sunday_state.machine of
-		nil ->
-			{error, 0, "Machine required.", State};
-		Machine ->
-			case drink_machines_sup:is_machine_alive(Machine) of
-				false ->
+	case string:to_integer(Slot) of
+		{error, _Reason} ->
+			{error, 406, "Invalid parameters.", State};
+		{SlotNum, _Rest} ->
+			case drink_machine:slot_info(State#sunday_state.machine, SlotNum) of
+				{ok, SlotInfo} ->
+					{raw, slot_status_reply([SlotInfo]), State};
+				{error, machine_down} ->
 					{error, 0, "Machine is down.", State};
-				true ->
-					case string:to_integer(Slot) of
-						{error, _Reason} ->
-							{error, 406, "Invalid parameters.", State};
-						{SlotNum, _Rest} ->
-							case drink_machine:slot_info(Machine, SlotNum) of
-								{ok, SlotInfo} ->
-									{raw, slot_status_reply([SlotInfo]), State};
-								{error, _Reason} ->
-									{error, 406, "Invalid parameters.", State}
-							end
-					end
+				{error, invalid_machine} ->
+					{error, 0, "Machine required.", State};
+				{error, _Reason} ->
+					{error, 406, "Invalid parameters.", State}
 			end
 	end;
 got_command("STAT", _, State) ->
-	case State#sunday_state.machine of
-		nil ->
+	case drink_machine:slots(State#sunday_state.machine) of
+		{ok, Slots} ->
+			{raw, slot_status_reply(lists:sort(Slots)), State};
+		{error, machine_down} ->
+			{error, 0, "Machine is down.", State};
+		{error, invalid_machine} ->
 			{error, 0, "Machine required.", State};
-		Machine ->
-			case drink_machines_sup:is_machine_alive(Machine) of
-				false ->
-					{error, 0, "Machine is down.", State};
-				true ->
-					{ok, Slots} = drink_machine:slots(Machine),
-					{raw, slot_status_reply(lists:sort(Slots)), State}
-			end
+		{error, _Reason} ->
+			{error, 0, "Unknown error.", State}
 	end;
 got_command("TEMP", _, State) ->
-	case State#sunday_state.machine of
-		nil ->
+	case drink_machine:temperature(State#sunday_state.machine) of
+		{ok, Temp} ->
+			{ok, io_lib:format("~.4f", [Temp]), State};
+		{error, no_temp} ->
+			{error, 351, "Unable to determine temperature.", State};
+		{error, machine_down} ->
+			{error, 0, "Machine is down.", State};
+		{error, invalid_machine} ->
 			{error, 0, "Machine required.", State};
-		Machine ->
-			case drink_machines_sup:is_machine_alive(Machine) of
-				false ->
-					{error, 0, "Machine is down.", State};
-				true ->
-					case drink_machine:temperature(Machine) of
-						{ok, Temp} ->
-							{ok, io_lib:format("~.4f", [Temp]), State};
-						{error, no_temp} ->
-							{error, 351, "Unable to determine temperature.", State}
-					end
-			end
+		{error, _Reason} ->
+			{error, 0, "Unknown error.", State}
 	end;
 got_command("USER", [User], State) ->
 	NewState = State#sunday_state{user=User},

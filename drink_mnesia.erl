@@ -21,11 +21,25 @@ initialize() ->
 		{attributes, record_info(fields, slot)}]),
 	mnesia:create_table(temperature, [
 		{type, bag},
-		{disc_copies, [node()]},
+		{disc_only_copies, [node()]},
 		{ram_copies, []},
 		{record_name, temperature},
 		{index, [time]},
-		{attributes, record_info(fields, temperature)}]).
+		{attributes, record_info(fields, temperature)}]),
+	mnesia:create_table(money_log, [
+		{type, bag},
+		{disc_only_copies, [node()]},
+		{ram_copies, []},
+		{record_name, money_log},
+		{index, [time, username, admin]},
+		{attributes, record_info(fields, money_log)}]),
+	mnesia:create_table(drop_log, [
+		{type, bag},
+		{disc_only_copies, [node()]},
+		{ram_copies, []},
+		{record_name, drop_log},
+		{index, [time, username, slot, status]},
+		{attributes, record_info(fields, drop_log)}]).
 
 upgrade() ->
 	%{atomic, ok} = mnesia:transform_table(machine, fun upgrade_machines/1, record_info(fields, machine), machine),

@@ -73,15 +73,41 @@ send(State, Str) ->
 	gen_tcp:send(State#sunday_state.socket, Str).
 
 got_command("ACCTMGRCHK", _, State) ->
-	{ok, "Server doesn't matter anymore", State};
+	{ok, "Server doesn't matter anymore.", State};
 got_command("CHPASS", _, State) ->
-	{error, 451, "Cannot change user/pass anymore", State};
+	{error, 451, "Cannot change user/pass anymore.", State};
 got_command("CODE", _, State) ->
-	{error, 451, "Not implemented", State};
-got_command("DROP", [_Slot], State) ->
-	{ok, "", State};
+	{error, 451, "Not implemented.", State};
+got_command("DROP", [SlotStr], State) ->
+	case string:to_integer(SlotStr) of
+		{error, _Reason} ->
+			{error, 409, "Invalid slot.", State};
+		{SlotNum, _Rest} ->
+			case user_auth:drop(State#sunday_state.userref, State#sunday_state.machine, SlotNum) of
+				{ok} ->
+					{ok, "", State};
+				{error, invalid_ref} ->
+					{error, 204, "You need to login.", State};
+				{error, permission_denied} ->
+					{error, 0, "Invalid user login.", State};
+				{error, slot_empty} ->
+					{error, 100, "Slot empty.", State};
+				{error, poor} ->
+					{error, 203, "User is poor.", State};
+				{error, drop_nack} ->
+					{error, 101, "Drop failed, contact an admin.", State};
+				{error, machine_down} ->
+					{error, 0, "Machine is down.", State};
+				{error, invalid_machine} ->
+					{error, 0, "Machine required.", State};
+				{error, _Reason} ->
+					{error, 0, "Unknown error.", State}
+			end
+	end;		
 got_command("DROP", [_Slot, _Delay], State) ->
-	{ok, "", State};
+	{error, 451, "Not implemented.", State};
+got_command("DROP", _, State) ->
+	{error, 406, "Invalid parameters.", State};
 got_command("GETBALANCE", [], State) ->
 	case State#sunday_state.userref of
 		nil ->
@@ -103,7 +129,7 @@ got_command("GETBALANCE", [User], State) ->
 				{error, permission_denied} ->
 					{error, 200, "Access denied.", State};
 				{error, _Reason} ->
-					{error, 200, "Unknown Error", State}
+					{error, 200, "Unknown error.", State}
 			end
 	end;
 got_command("GETBALANCE", _, State) ->

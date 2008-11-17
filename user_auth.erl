@@ -212,6 +212,7 @@ refund(UserInfo, Amount, State) when is_tuple(UserInfo) ->
 			ets:insert(State#uastate.usertable, NewUserInfo),
 			{ok, NewUserInfo};
 		{error, Reason} ->
+			error_logger:error_msg("Failed to refund ~s ~b credits: ~p~n", [UserInfo#user.username, Amount, Reason]),
 			{error, Reason}
 	end.
 
@@ -259,7 +260,7 @@ respect_read_permissions(UserInfo, Result, []) ->
 get_from_ref(UserRef, State) when is_reference(UserRef) ->
 	case ets:lookup(State#uastate.reftable, UserRef) of
 		[] ->
-			{error, notfound};
+			{error, invalid_ref};
 		[{UserRef, Username, Perms}] ->
 			case get_user(Username, State) of
 				{ok, UserInfo} ->

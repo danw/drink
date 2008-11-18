@@ -9,11 +9,7 @@
 -include ("user.hrl").
 -include ("drink_mnesia.hrl").
 
--define (LDAPHOST, "ldap.csh.rit.edu").
--define (LDAPBINDDN, "bind").
--define (LDAPBINDPASS, "pass").
-
--record (uastate, {ldapconn,reftable,usertable}).
+-record (uastate, {reftable,usertable}).
 
 %%%%%%%%%%%%%%%%%%%%%%%%
 % Gen_Server Callbacks %
@@ -25,27 +21,9 @@ init ([]) ->
 	process_flag(trap_exit, true),
 	RefTable = ets:new(ref2user, [set, private]),
 	UserTable = ets:new(userinfo, [set, private, {keypos, 2}]),
-	case eldap:open([?LDAPHOST], [	
-%									{log, fun(_L, F, A) -> error_logger:info_msg(F, A) end},
-	 								{ssl, true},
-	 								{ssl_opts, [{cacertfile, "cshca.crt"}]},
-									{port, 636},
-									{timeout, 5000}]) of
-		{ok, LdapConn} ->
-			case eldap:simple_bind(LdapConn, ?LDAPBINDDN, ?LDAPBINDPASS) of
-				ok ->
-					error_logger:info_msg("Logged into LDAP!!!!"),
-					{ok, #uastate{ldapconn = LdapConn,
-								  reftable = RefTable,
-								  usertable = UserTable}};
-				Reason ->
-					{stop, Reason}
-			end;
-		{error, Reason} ->
-			{stop, Reason};
-		Reason ->
-			{stop, Reason}
-	end.
+	{ok, #uastate{
+	    reftable = RefTable,
+            usertable = UserTable}}.
 
 handle_call ({user, Username}, _From, State) when is_list(Username) ->
 	case get_user(Username, State) of

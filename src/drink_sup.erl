@@ -33,6 +33,13 @@ init ([]) ->
 		    100,				% Allow 100 seconds for it to shutdown
 		    worker,				% Not a supervisor
 		    [user_auth]},		% Uses the user_auth Module
+
+		   {eldap_user,
+                    {eldap, start_link, []},
+                    permanent,
+                    100,
+                    worker,
+                    [eldap]},
 		
 		   {sunday_server_listener,
 		    {gen_listener, start_link, [?SUNDAY_SERVER_PORT, {sunday_server, start_link, []}]},

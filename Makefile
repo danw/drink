@@ -3,7 +3,7 @@
 %.o: %.c
 	erlc -W $<
 
-ERL = erl -boot drink -sname drink -mnesia dir "\"`pwd`/mnesia_data\"" -mnesia schema_location disc
+ERL = erl -boot drink -sname drink -mnesia dir "\"`pwd`/mnesia_data\"" -mnesia schema_location disc -pz epam eldap
 
 all: check run
 
@@ -11,8 +11,9 @@ run: drink.boot
 	${ERL}
 
 compile:
-	erlc -W +debug_info -I /usr/lib/erlang/lib/stdlib-1.14.5/include/ *.erl pam/*.erl
-	gcc -o epam -lpam pam/epam.c -lerl_interface -lei -lpthread
+	make epam
+	erl -make
+	erlc -W +debug_info -I /usr/lib/erlang/lib/stdlib-1.14.5/include/ *.erl
 
 drink.boot: drink.rel compile
 	erlc -W drink.rel
@@ -21,4 +22,4 @@ check: compile
 	dialyzer -c .
 
 clean:
-	rm -rf *.beam pam/*.beam epam
+	rm -rf *.beam pam/*.beam epam *.boot *.script

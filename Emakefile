@@ -1,0 +1,1 @@
+{['*','epam/*','eldap/*'], [debug_info, {i, "/usr/lib/erlang/lib/stdlib-1.14.5/include/"}]}.

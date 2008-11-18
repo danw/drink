@@ -3,7 +3,7 @@ ERL = erl -boot drink -sname drink -mnesia dir "\"`pwd`/mnesia_data\"" -mnesia s
 all: app release
 
 app: compile
-	make -C lib/drink-1.0 compile
+	true
 
 check: compile
 	dialyzer -c ebin
@@ -12,11 +12,10 @@ compile:
 	erl -make
 
 release: drink.rel
-	erlc -W drink.rel
+	erlc -W -I ebin drink.rel
 
 clean:
-	rm -f ebin/*.beam priv/epam
-	rm -f drink.boot
+	rm -f ebin/*.beam priv/epam drink.boot drink.script
 
 run:
 	$ERL

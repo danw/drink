@@ -22,4 +22,4 @@ check: compile
 	dialyzer -c .
 
 clean:
-	rm -rf *.beam pam/*.beam epam *.boot *.script
+	rm -rf ebin/*.beam priv/epam ebin/*.boot ebin/*.script

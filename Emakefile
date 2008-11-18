@@ -1,1 +1,1 @@
-{['*','epam/*','eldap/*'], [debug_info, {i, "/usr/lib/erlang/lib/stdlib-1.14.5/include/"}]}.
+{['src/*', 'src/epam/*', 'src/eldap/*'], [{outdir, "ebin"}, debug_info, {i, "include"}, {i, "/usr/lib/erlang/lib/stdlib-1.14.5/include/"}]}.

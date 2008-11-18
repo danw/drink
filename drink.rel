@@ -1,5 +1,5 @@
 {release,
-	{"drink_server", "1"},
+	{"drink", "1.0"},
 	{erts, "5.6"},
 	[{kernel, "2.11.5"},
 	 {stdlib, "1.14.5"},

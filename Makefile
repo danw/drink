@@ -1,16 +1,15 @@
-ERL = erl -boot drink -sname drink -mnesia dir "\"`pwd`/mnesia_data\"" -mnesia schema_location disc -pz ebin
 
-all: compile check run
+all: app release
 
-run: compile
-	${ERL}
+app:
+	make -C lib/drink-1.0
 
-compile: src/drink.rel
-	erl -make
-	erlc -W src/drink.rel
-
-check: compile
-	@dialyzer -c .
+release: drink.rel
+	erlc -W drink.rel
 
 clean:
-	rm -rf ebin/*.beam priv/epam ebin/*.boot ebin/*.script
+	make -C lib/drink-1.0 clean
+	rm -f drink.
+
+run:
+	echo "Testing"

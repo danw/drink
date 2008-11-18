@@ -8,7 +8,7 @@ app: compile
 check: compile
 	dialyzer -c ebin
 
-compile:
+compile: priv/epam
 	erl -make
 
 release: compile drink.rel
@@ -19,3 +19,6 @@ clean:
 
 run: release
 	${ERL}
+
+priv/epam: src/pam/epam.c
+	gcc -o priv/epam -lpam src/pam/epam.c -lerl_interface -lei -lpthread

@@ -6,9 +6,12 @@
 -export ([handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 -export ([user/1, auth/1, auth/2, admin/2, user_info/1, delete_ref/1, drop/3]).
 
--include ("ldapconf.hrl").
 -include ("user.hrl").
 -include ("drink_mnesia.hrl").
+
+-define (LDAPHOST, "ldap.csh.rit.edu").
+-define (LDAPBINDDN, "bind").
+-define (LDAPBINDPASS, "pass").
 
 -record (uastate, {ldapconn,reftable,usertable}).
 

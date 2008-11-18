@@ -1,25 +1,16 @@
-.SUFFIXES: .erl .beam
+ERL = erl -boot drink -sname drink -mnesia dir "\"`pwd`/mnesia_data\"" -mnesia schema_location disc -pz ebin
 
-%.o: %.c
-	erlc -W $<
+all: compile check run
 
-ERL = erl -boot drink -sname drink -mnesia dir "\"`pwd`/mnesia_data\"" -mnesia schema_location disc -pz epam eldap
-
-all: check run
-
-run: drink.boot
+run: compile
 	${ERL}
 
-compile:
-	make epam
+compile: src/drink.rel
 	erl -make
-	erlc -W +debug_info -I /usr/lib/erlang/lib/stdlib-1.14.5/include/ *.erl
-
-drink.boot: drink.rel compile
-	erlc -W drink.rel
+	erlc -W src/drink.rel
 
 check: compile
-	dialyzer -c .
+	@dialyzer -c .
 
 clean:
 	rm -rf ebin/*.beam priv/epam ebin/*.boot ebin/*.script

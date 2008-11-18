@@ -35,6 +35,8 @@
 	]).
 
 %-include("ejabberd.hrl").
+-define (ERROR_MSG, error_logger:error_msg).
+
 
 %%====================================================================
 %% API

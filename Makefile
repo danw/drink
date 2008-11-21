@@ -9,10 +9,10 @@ check: compile
 	dialyzer -c ebin
 
 compile: priv/epam
-	erl -make
+	erl -eval 'case make:all() of up_to_date -> halt(0); error -> halt(1) end.' -noshell
 
 release: compile drink.rel
-	erl -eval 'systools:make_script("drink", [local, {path, ["ebin"]}]), init:stop().'
+	erl -eval 'case systools:make_script("drink", [no_module_tests, local, {path, ["ebin"]}]) of ok -> halt(0); error -> halt(1) end.' -noshell
 
 clean:
 	rm -f ebin/*.beam priv/epam drink.boot drink.script erl_crash.dump

@@ -81,8 +81,7 @@ got_command("ADDCREDITS", [User, CreditsStr], State) ->
         {Credits, _Rest} ->
             case user_auth:admin(State#sunday_state.userref, User) of
                 {ok, UserRef} ->
-                    {ok, UserInfo} = user_auth:user_info(State#sunday_state.userref),
-                    case user_auth:add_credits(UserRef, Credits, {admin, UserInfo#user.username, sunday_server}) of
+                    case user_auth:add_credits(UserRef, Credits, sunday_server) of
                         ok ->
                             {ok, "Added credits.", State};
                         {error, _Reason} ->

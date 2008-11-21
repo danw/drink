@@ -374,8 +374,8 @@ get_handle(Name) when list(Name) -> list_to_atom("eldap_" ++ Name).
 %%----------------------------------------------------------------------
 init([]) ->
     case get_config() of
-	{ok, Hosts, Rootdn, Passwd} ->
-	    init({Hosts, Rootdn, Passwd});
+	{ok, Hosts, Port, Rootdn, Passwd} ->
+	    init({Hosts, Port, Rootdn, Passwd});
 	{error, Reason} ->
 	    {stop, Reason}
     end;
@@ -990,6 +990,10 @@ get_list(Key, List) ->
     end.
 
 get_hosts(Key, List) ->
+    HostList = lists:filter(fun({Key1, _}) when Key == Key1 ->
+				true;
+			    ({_, _}) ->
+				false end, List),
     lists:map(fun({Key1, {A,B,C,D}}) when integer(A),
 					  integer(B),
 					  integer(C),
@@ -999,9 +1003,9 @@ get_hosts(Key, List) ->
 		 ({Key1, Value}) when list(Value),
 				      Key == Key1->
 		      Value;
-		 ({_Else, _Value}) ->
+		 ({_Key, _Value}) ->
 		      throw({error, "Bad Hostname in config"}) 
-	      end, List).
+	      end, HostList).
 
 %%% --------------------------------------------------------------------
 %%% Other Stuff

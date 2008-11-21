@@ -1,4 +1,4 @@
-ERL = erl -boot drink -sname drink -mnesia dir "\"`pwd`/mnesia_data\"" -mnesia schema_location disc -pz ebin
+ERL = erl -boot drink -sname drink -mnesia dir "\"`pwd`/mnesia_data\"" -mnesia schema_location disc 
 
 all: app release
 
@@ -12,7 +12,7 @@ compile: priv/epam
 	erl -make
 
 release: compile drink.rel
-	erlc -W -I ebin drink.rel
+	erl -eval 'systools:make_script("drink", [local, {path, ["ebin"]}]), init:stop().'
 
 clean:
 	rm -f ebin/*.beam priv/epam drink.boot drink.script erl_crash.dump

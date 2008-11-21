@@ -4,7 +4,10 @@
 -export ([start_link/0]).
 -export ([init/1]).
 -export ([handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
--export ([user/1, auth/1, auth/2, admin/2, user_info/1, delete_ref/1, drop/3]).
+-export ([user/1, auth/1, auth/2, admin/2, user_info/1, delete_ref/1, drop/3, add_credits/3, dec_credits/3]).
+
+% for testing:
+-export ([ldap_set_credits/1]).
 
 -include ("user.hrl").
 -include ("drink_mnesia.hrl").
@@ -91,6 +94,40 @@ handle_call ({drop, UserRef, Machine, Slot}, _From, State) when is_reference(Use
 		{error, Reason} ->
 			{reply, {error, Reason}, State}
 	end;
+handle_call ({add_credits, UserRef, Credits, CallReason}, _From, State) when is_reference(UserRef), is_integer(Credits) ->
+    case get_from_ref(UserRef, State) of
+        {ok, UserInfo, Perms} ->
+            case can_write(Perms) of
+                true ->
+                    case refund(UserInfo, Credits, CallReason, State) of
+                        {ok, _NewUserInfo} ->
+                            {reply, ok, State};
+                        {error, Reason} ->
+                            {reply, {error, Reason}, State}
+                    end;
+                false ->
+                    {reply, {error, permission_denied}, State}
+            end;
+        {error, Reason} ->
+            {reply, {error, Reason}, State}
+    end;
+handle_call ({dec_credits, UserRef, Credits, CallReason}, _From, State) when is_reference(UserRef), is_integer(Credits) ->
+    case get_from_ref(UserRef, State) of
+        {ok, UserInfo, Perms} ->
+            case can_write(Perms) of
+                true ->
+                    case deduct(UserInfo, Credits, CallReason, State) of
+                        {ok, _NewUserInfo} ->
+                            {reply, ok, State};
+                        {error, Reason} ->
+                            {reply, {error, Reason}, State}
+                    end;
+                false ->
+                    {reply, {error, permission_denied}, State}
+            end;
+        {error, Reason} ->
+            {reply, {error, Reason}, State}
+    end;
 
 handle_call (_Request, _From, State) ->
 	{reply, {error, unknown_call}, State}.
@@ -141,6 +178,12 @@ delete_ref(UserRef) when is_reference(UserRef) ->
 drop(UserRef, Machine, Slot) when is_reference(UserRef), is_atom(Machine), is_integer(Slot) ->
 	gen_server:call(?MODULE, {drop, UserRef, Machine, Slot}).
 
+add_credits(UserRef, Credits, Reason) when is_reference(UserRef), is_integer(Credits) ->
+    gen_server:call(?MODULE, {add_credits, UserRef, Credits, Reason}).
+
+dec_credits(UserRef, Credits, Reason) when is_reference(UserRef), is_integer(Credits) ->
+    gen_server:call(?MODULE, {dec_credits, UserRef, Credits, Reason}).
+
 %%%%%%%%%%%%%%%%%%%%
 % Internal Helpers %
 %%%%%%%%%%%%%%%%%%%%
@@ -182,21 +225,31 @@ deduct(UserInfo, Cost, Reason, State) when is_tuple(UserInfo) ->
 					    NewReason ->
 					        nil
 					end,
-					drink_mnesia:log_money(#money_log{
+					MoneyLog = #money_log{
 					    time = erlang:universaltime(),
 					    username = UserInfo#user.username,
 					    amount = Cost,
 					    reason = NewReason,
 					    admin = AdminUser
-					}),
-					% TODO: change in ldap
-					ets:insert(State#uastate.usertable, NewUserInfo),
-					{ok, NewUserInfo};
+					},
+					case catch ldap_set_credits(NewUserInfo) of
+					    ok ->
+        					ets:insert(State#uastate.usertable, NewUserInfo),
+        					drink_mnesia:log_money(MoneyLog),
+        					{ok, NewUserInfo};
+        				{error, EReason} ->
+        				    error_logger:error_msg("Failed to deduct ~b credits from ~s: ~p~n", [Cost, UserInfo#user.username, EReason]),
+                		    {error, EReason};
+        				EReason ->
+                		    error_logger:error_msg("Failed to deduct ~b credits from ~s: ~p~n", [Cost, UserInfo#user.username, EReason]),
+        				    {error, EReason}
+        			end;
 				_ ->
 					{error, poor}
 			end;
-		{error, Reason} ->
-			{error, Reason}
+		{error, EReason} ->
+		    error_logger:error_msg("Failed to deduct ~b credits from ~s: ~p~n", [Cost, UserInfo#user.username, EReason]),
+			{error, EReason}
 	end.
 
 refund(UserInfo, Amount, Reason, State) when is_tuple(UserInfo) ->
@@ -209,20 +262,29 @@ refund(UserInfo, Amount, Reason, State) when is_tuple(UserInfo) ->
 			    NewReason ->
 			        nil
 			end,
-			drink_mnesia:log_money(#money_log{
+			MoneyLog = #money_log{
 			    time = erlang:universaltime(),
 			    username = UserInfo#user.username,
 			    amount = Amount,
 			    reason = NewReason,
 			    admin = AdminUser,
 			    direction = in
-			}),
-			% TODO: change in ldap
-			ets:insert(State#uastate.usertable, NewUserInfo),
-			{ok, NewUserInfo};
-		{error, Reason} ->
-			error_logger:error_msg("Failed to refund ~s ~b credits: ~p~n", [UserInfo#user.username, Amount, Reason]),
-			{error, Reason}
+			},
+			case catch ldap_set_credits(NewUserInfo) of
+			    ok ->
+        			ets:insert(State#uastate.usertable, NewUserInfo),
+        			drink_mnesia:log_money(MoneyLog),
+        			{ok, NewUserInfo};
+        		{error, EReason} ->
+	    			error_logger:error_msg("Failed to refund ~s ~b credits: ~p~n", [UserInfo#user.username, Amount, EReason]),
+        		    {error, EReason};
+        		EReason ->
+	    			error_logger:error_msg("Failed to refund ~s ~b credits: ~p~n", [UserInfo#user.username, Amount, EReason]),
+        		    {error, EReason}
+        	end;
+		{error, EReason} ->
+			error_logger:error_msg("Failed to refund ~s ~b credits: ~p~n", [UserInfo#user.username, Amount, EReason]),
+			{error, EReason}
 	end.
 
 drop_slot(UserInfo, Machine, Slot, State) when is_tuple(UserInfo), is_atom(Machine), is_integer(Slot) ->
@@ -248,12 +310,11 @@ drop_slot(UserInfo, Machine, Slot, State) when is_tuple(UserInfo), is_atom(Machi
 			{error, Reason}
 	end.
 
-can_drop([drop|_T]) ->
-	true;
-can_drop([_Perm|T]) ->
-	can_drop(T);
-can_drop([]) ->
-	false.
+can_drop(Perms) ->
+    lists:member(drop, Perms).
+
+can_write(Perms) ->
+    lists:member(write, Perms).
 
 is_admin(UserRef, State) when is_reference(UserRef) ->
 	case get_from_ref(UserRef, State) of
@@ -307,6 +368,8 @@ get_ldap_user(Attr, Value, State) when is_list(Attr), is_list(Value) ->
 			Credits = ldap_attribute("drinkBalance", ResultList),
 			IButtons = ldap_attribute("ibutton", ResultList),
 			{ok, #user{username=Username,admin=Admin,credits=Credits,ibuttons=IButtons}};
+		{eldap_search_result, [], []} ->
+		    {error, invalid_user};
 		{error, Reason} ->
 			{error, Reason};
 		Reason ->
@@ -343,3 +406,8 @@ check_pass(User, Pass) ->
         _Else ->
             false
     end.
+
+ldap_set_credits(UserInfo) ->
+    eldap:modify(eldap_user, 
+        "uid=" ++ UserInfo#user.username ++ ",ou=users,dc=csh,dc=rit,dc=edu",
+        [eldap:mod_replace("drinkBalance", [integer_to_list(UserInfo#user.credits)])]).

@@ -74,6 +74,30 @@ send(State, Str) ->
 
 got_command("ACCTMGRCHK", _, State) ->
 	{ok, "Server doesn't matter anymore.", State};
+got_command("ADDCREDITS", [User, CreditsStr], State) ->
+    case string:to_integer(CreditsStr) of
+        {error, _Reason} ->
+            {error, 402, "Invalid credits."};
+        {Credits, _Rest} ->
+            case user_auth:admin(State#sunday_state.userref, User) of
+                {ok, UserRef} ->
+                    {ok, UserInfo} = user_auth:user_info(State#sunday_state.userref),
+                    case user_auth:add_credits(UserRef, Credits, {admin, UserInfo#user.username, sunday_server}) of
+                        ok ->
+                            {ok, "Added credits.", State};
+                        {error, _Reason} ->
+                            {error, 0, "Unknown error.", State}
+                    end;
+                {error, invalid_ref} ->
+                    {error, 204, "You need to login.", State};
+                {error, permission_denied} ->
+                    {error, 0, "Permission denied.", State};
+                {error, invalid_user} ->
+                    {error, 410, "Invalid user.", State}
+            end
+    end;
+got_command("ADDCREDITS", _, State) ->
+    {error, 406, "Invalid parameters.", State};
 got_command("CHPASS", _, State) ->
 	{error, 451, "Cannot change user/pass anymore.", State};
 got_command("CODE", _, State) ->

@@ -53,13 +53,13 @@ init ([]) ->
             permanent,
             100,
             worker,
-            [epam]},
+            [epam]}
 		   
-		   {web_server,
-			{drink_web, start_link, []},
-			permanent,
-			100,
-			worker,
-			[drink_web]}
+            %          {web_server,
+            % {drink_web, start_link, []},
+            % permanent,
+            % 100,
+            % worker,
+            % [drink_web]}
 		  ]
 		}}.

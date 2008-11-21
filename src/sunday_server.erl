@@ -83,8 +83,10 @@ got_command("ADDCREDITS", [User, CreditsStr], State) ->
                 {ok, UserRef} ->
                     case user_auth:add_credits(UserRef, Credits, sunday_server) of
                         ok ->
+                            user_auth:delete_ref(UserRef),
                             {ok, "Added credits.", State};
                         {error, _Reason} ->
+                            user_auth:delete_ref(UserRef),
                             {error, 0, "Unknown error.", State}
                     end;
                 {error, invalid_ref} ->

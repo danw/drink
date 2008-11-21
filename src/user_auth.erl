@@ -300,7 +300,7 @@ get_ldap_user(Username, State) when is_list(Username) ->
 	Base = {base, "ou=users,dc=csh,dc=rit,dc=edu"},
 	Scope = {scope, eldap:singleLevel()},
 	Filter = {filter, eldap:equalityMatch("uid", Username)},
-	case eldap:search(State#uastate.ldapconn, [Base, Scope, Filter]) of
+	case eldap:search(eldap_user, [Base, Scope, Filter]) of
 		{ok, {eldap_search_result, [ResultList], []}} ->
 			Admin = ldap_attribute("drinkAdmin", ResultList),
 			Credits = ldap_attribute("drinkBalance", ResultList),

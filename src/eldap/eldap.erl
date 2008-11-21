@@ -946,7 +946,7 @@ v_attributes(Attrs) ->
 %%% Get and Validate the initial configuration
 %%% --------------------------------------------------------------------
 get_config() ->
-    Priv_dir = code:priv_dir(eldap),
+    Priv_dir = code:priv_dir(drink),
     File = filename:join(Priv_dir, "eldap.conf"),
     case file:consult(File) of
 	{ok, Entries} ->

@@ -35,7 +35,7 @@ init ([]) ->
 		    [user_auth]},		% Uses the user_auth Module
 
 		   {eldap_user,
-                    {eldap, start_link, []},
+                    {eldap, start_link, ["user"]},
                     permanent,
                     100,
                     worker,

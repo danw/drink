@@ -296,12 +296,13 @@ create_user_ref(Username, Perm, State) when is_list(Username), is_atom(Perm) ->
 create_user_ref(UserInfo, Perms, State) when is_tuple(UserInfo) ->
 	create_user_ref(UserInfo#user.username, Perms, State).
 
-get_ldap_user(Username, State) when is_list(Username) ->
+get_ldap_user(Attr, Value, State) when is_list(Attr), is_list(Value) ->
 	Base = {base, "ou=users,dc=csh,dc=rit,dc=edu"},
 	Scope = {scope, eldap:singleLevel()},
-	Filter = {filter, eldap:equalityMatch("uid", Username)},
+	Filter = {filter, eldap:equalityMatch(Attr, Value)},
 	case eldap:search(eldap_user, [Base, Scope, Filter]) of
-		{ok, {eldap_search_result, [ResultList], []}} ->
+		{eldap_search_result, [ResultList], []} ->
+		    Username = ldap_attribute("uid", ResultList),
 			Admin = ldap_attribute("drinkAdmin", ResultList),
 			Credits = ldap_attribute("drinkBalance", ResultList),
 			IButtons = ldap_attribute("ibutton", ResultList),
@@ -315,7 +316,7 @@ get_ldap_user(Username, State) when is_list(Username) ->
 get_user(Username, State) when is_list(Username) ->
 	case ets:lookup(State#uastate.usertable, Username) of
 		[] ->
-			case get_ldap_user(Username, State) of
+			case get_ldap_user("uid", Username, State) of
 				{ok, UserInfo} ->
 					ets:insert(State#uastate.usertable, UserInfo),
 					{ok, UserInfo};
@@ -326,8 +327,14 @@ get_user(Username, State) when is_list(Username) ->
 			{ok, UserInfo}
 	end.
 
-get_user_from_ibutton(Ibutton, _State) when is_list(Ibutton) ->
-	{error, not_implemented}.
+get_user_from_ibutton(Ibutton, State) when is_list(Ibutton) ->
+    case get_ldap_user("ibutton", Ibutton, State) of
+        {ok, UserInfo} ->
+            ets:insert(State#uastate.usertable, UserInfo),
+            {ok, UserInfo};
+        {error, Reason} ->
+            {error, Reason}
+    end.
 
 check_pass(User, Pass) ->
     case epam:authenticate("drink", User, Pass) of

@@ -1,1 +1,1 @@
--record (user, {username, admin = false, credits = 0,ibuttons=[]}).
+-record (user, {username, admin = false, credits = 0, ibuttons = [], adminuser = nil}).

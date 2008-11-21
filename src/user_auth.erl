@@ -59,7 +59,8 @@ handle_call ({admin, Admin, Username}, _From, State) when is_reference(Admin), i
 		{ok, User} ->
 			case is_admin(Admin, State) of
 				true ->
-					{reply, {ok, create_user_ref(User, [read, write, ibutton], State)}, State};
+				    {ok, AdminUser} = get_user(Admin, State),
+					{reply, {ok, create_user_ref(User, [read, write, ibutton], AdminUser#user.username, State)}, State};
 				false ->
 					{reply, {error, permission_denied}, State}
 			end;
@@ -212,62 +213,50 @@ ldap_attribute(Attr, [{Name, ValueArr}|T]) ->
 			ldap_attribute(Attr, T)
 	end.
 
-deduct(UserInfo, Cost, Reason, State) when is_tuple(UserInfo) ->
+deduct(UserInfo, Cost, MoneyReason, State) when is_tuple(UserInfo) ->
 	case get_user(UserInfo#user.username, State) of
 		{ok, User} ->
 			io:format("Deducting ~p from ~p(~p)~n", [Cost, User#user.username, User#user.credits]),
 			case User#user.credits of
 				B when B >= Cost ->
 					NewUserInfo = User#user{credits = B - Cost},
-					AdminUser = case Reason of
-					    {admin, AU, NewReason} ->
-					        AU;
-					    NewReason ->
-					        nil
-					end,
 					MoneyLog = #money_log{
 					    time = erlang:universaltime(),
 					    username = UserInfo#user.username,
 					    amount = Cost,
-					    reason = NewReason,
-					    admin = AdminUser
+					    reason = MoneyReason,
+					    admin = UserInfo#user.adminuser
 					},
 					case catch ldap_set_credits(NewUserInfo) of
 					    ok ->
         					ets:insert(State#uastate.usertable, NewUserInfo),
         					drink_mnesia:log_money(MoneyLog),
         					{ok, NewUserInfo};
-        				{error, EReason} ->
-        				    error_logger:error_msg("Failed to deduct ~b credits from ~s: ~p~n", [Cost, UserInfo#user.username, EReason]),
-                		    {error, EReason};
-        				EReason ->
-                		    error_logger:error_msg("Failed to deduct ~b credits from ~s: ~p~n", [Cost, UserInfo#user.username, EReason]),
-        				    {error, EReason}
+        				{error, Reason} ->
+        				    error_logger:error_msg("Failed to deduct ~b credits from ~s: ~p~n", [Cost, UserInfo#user.username, Reason]),
+                		    {error, Reason};
+        				Reason ->
+                		    error_logger:error_msg("Failed to deduct ~b credits from ~s: ~p~n", [Cost, UserInfo#user.username, Reason]),
+        				    {error, Reason}
         			end;
 				_ ->
 					{error, poor}
 			end;
-		{error, EReason} ->
-		    error_logger:error_msg("Failed to deduct ~b credits from ~s: ~p~n", [Cost, UserInfo#user.username, EReason]),
-			{error, EReason}
+		{error, Reason} ->
+		    error_logger:error_msg("Failed to deduct ~b credits from ~s: ~p~n", [Cost, UserInfo#user.username, Reason]),
+			{error, Reason}
 	end.
 
-refund(UserInfo, Amount, Reason, State) when is_tuple(UserInfo) ->
+refund(UserInfo, Amount, MoneyReason, State) when is_tuple(UserInfo) ->
 	case get_user(UserInfo#user.username, State) of
 		{ok, User} ->
 			NewUserInfo = User#user{credits = User#user.credits + Amount},
-			AdminUser = case Reason of
-			    {admin, AU, NewReason} ->
-			        AU;
-			    NewReason ->
-			        nil
-			end,
 			MoneyLog = #money_log{
 			    time = erlang:universaltime(),
 			    username = UserInfo#user.username,
 			    amount = Amount,
-			    reason = NewReason,
-			    admin = AdminUser,
+			    reason = MoneyReason,
+			    admin = User#user.adminuser,
 			    direction = in
 			},
 			case catch ldap_set_credits(NewUserInfo) of
@@ -275,16 +264,16 @@ refund(UserInfo, Amount, Reason, State) when is_tuple(UserInfo) ->
         			ets:insert(State#uastate.usertable, NewUserInfo),
         			drink_mnesia:log_money(MoneyLog),
         			{ok, NewUserInfo};
-        		{error, EReason} ->
-	    			error_logger:error_msg("Failed to refund ~s ~b credits: ~p~n", [UserInfo#user.username, Amount, EReason]),
-        		    {error, EReason};
-        		EReason ->
-	    			error_logger:error_msg("Failed to refund ~s ~b credits: ~p~n", [UserInfo#user.username, Amount, EReason]),
-        		    {error, EReason}
+        		{error, Reason} ->
+	    			error_logger:error_msg("Failed to refund ~s ~b credits: ~p~n", [UserInfo#user.username, Amount, Reason]),
+        		    {error, Reason};
+        		Reason ->
+	    			error_logger:error_msg("Failed to refund ~s ~b credits: ~p~n", [UserInfo#user.username, Amount, Reason]),
+        		    {error, Reason}
         	end;
-		{error, EReason} ->
-			error_logger:error_msg("Failed to refund ~s ~b credits: ~p~n", [UserInfo#user.username, Amount, EReason]),
-			{error, EReason}
+		{error, Reason} ->
+			error_logger:error_msg("Failed to refund ~s ~b credits: ~p~n", [UserInfo#user.username, Amount, Reason]),
+			{error, Reason}
 	end.
 
 drop_slot(UserInfo, Machine, Slot, State) when is_tuple(UserInfo), is_atom(Machine), is_integer(Slot) ->
@@ -339,25 +328,28 @@ get_from_ref(UserRef, State) when is_reference(UserRef) ->
 	case ets:lookup(State#uastate.reftable, UserRef) of
 		[] ->
 			{error, invalid_ref};
-		[{UserRef, Username, Perms}] ->
+		[{UserRef, Username, Perms, Admin}] ->
 			case get_user(Username, State) of
 				{ok, UserInfo} ->
-					{ok, UserInfo, Perms};
+					{ok, UserInfo#user{adminuser = Admin}, Perms};
 				{error, Reason} ->
 					{error, Reason}
 			end
 	end.
 
-create_user_ref(Username, Perms, State) when is_list(Username), is_list(Perms) ->
+create_user_ref(Username, Perms, Admin, State) when is_list(Username), is_list(Perms) ->
 	Ref = make_ref(),
-	ets:insert(State#uastate.reftable, {Ref, Username, Perms}),
+	ets:insert(State#uastate.reftable, {Ref, Username, Perms, Admin}),
 	Ref;
-create_user_ref(Username, Perm, State) when is_list(Username), is_atom(Perm) ->
-	create_user_ref(Username, [Perm], State);
-create_user_ref(UserInfo, Perms, State) when is_tuple(UserInfo) ->
-	create_user_ref(UserInfo#user.username, Perms, State).
+create_user_ref(Username, Perm, Admin, State) when is_list(Username), is_atom(Perm) ->
+	create_user_ref(Username, [Perm], Admin, State);
+create_user_ref(UserInfo, Perms, Admin, State) when is_tuple(UserInfo) ->
+	create_user_ref(UserInfo#user.username, Perms, Admin, State).
+	
+create_user_ref(User, Perms, State) ->
+    create_user_ref(User, Perms, nil, State).
 
-get_ldap_user(Attr, Value, State) when is_list(Attr), is_list(Value) ->
+get_ldap_user(Attr, Value) when is_list(Attr), is_list(Value) ->
 	Base = {base, "ou=users,dc=csh,dc=rit,dc=edu"},
 	Scope = {scope, eldap:singleLevel()},
 	Filter = {filter, eldap:equalityMatch(Attr, Value)},
@@ -379,7 +371,7 @@ get_ldap_user(Attr, Value, State) when is_list(Attr), is_list(Value) ->
 get_user(Username, State) when is_list(Username) ->
 	case ets:lookup(State#uastate.usertable, Username) of
 		[] ->
-			case get_ldap_user("uid", Username, State) of
+			case get_ldap_user("uid", Username) of
 				{ok, UserInfo} ->
 					ets:insert(State#uastate.usertable, UserInfo),
 					{ok, UserInfo};
@@ -391,7 +383,7 @@ get_user(Username, State) when is_list(Username) ->
 	end.
 
 get_user_from_ibutton(Ibutton, State) when is_list(Ibutton) ->
-    case get_ldap_user("ibutton", Ibutton, State) of
+    case get_ldap_user("ibutton", Ibutton) of
         {ok, UserInfo} ->
             ets:insert(State#uastate.usertable, UserInfo),
             {ok, UserInfo};

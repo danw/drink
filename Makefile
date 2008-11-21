@@ -25,3 +25,6 @@ run: release drink.config
 
 priv/epam: src/pam/epam.c
 	gcc -o priv/epam -lpam src/pam/epam.c -lerl_interface -lei -lpthread
+
+logs:
+	erl -boot start_sasl -sasl sasl_error_logger false -noshell -eval 'rb:start([{report_dir, "/root/drink/log"}]), rb:show(), init:stop().'

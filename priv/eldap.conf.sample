@@ -1,0 +1,4 @@
+{host, "ldap.csh.rit.edu"}.
+{port, 389}.
+{rootdn, "binddn"}.
+{passwd, "password"}.

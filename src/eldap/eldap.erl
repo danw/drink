@@ -61,7 +61,7 @@
 %-include("ejabberd.hrl").
 -define (DEBUG, error_logger:info_msg).
 -define (INFO_MSG, error_logger:info_msg).
--define (WARNING_MSG, error_logger:info_msg).
+-define (WARNING_MSG, error_logger:warning_msg).
 -define (ERROR_MSG, error_logger:error_msg).
 
 %% External exports

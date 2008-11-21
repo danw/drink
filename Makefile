@@ -21,6 +21,7 @@ clean:
 	rm -f ebin/*.beam priv/epam drink.boot drink.script erl_crash.dump
 
 run: release drink.config
+	mkdir -p log web_log
 	${ERL}
 
 priv/epam: src/pam/epam.c

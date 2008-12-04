@@ -849,7 +849,7 @@ polish([], Res, Ref) ->
 connect_bind(S) ->
     Host = next_host(S#eldap.host, S#eldap.hosts),
     TcpOpts = [{packet, asn1}, {active, true}, {keepalive, true}, binary],
-    ?INFO_MSG("LDAP connection on ~s:~p~n", [Host, S#eldap.port]),
+    ?INFO_MSG("LDAP connection on ~s:~p~n~n", [Host, S#eldap.port]),
     case gen_tcp:connect(Host, S#eldap.port, TcpOpts) of
 	{ok, Socket} ->
 	    case bind_request(Socket, S) of

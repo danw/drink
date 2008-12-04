@@ -5,7 +5,7 @@
 
 -include ("drink_mnesia.hrl").
 -include ("user.hrl").
--include ("qlc.hrl").
+-include_lib ("stdlib/include/qlc.hrl").
 
 -record (sunday_state, {
 			socket,

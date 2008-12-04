@@ -5,7 +5,7 @@
 -export ([machine_connected/2, machines/0, is_machine/1, is_machine_alive/1]).
 
 -include ("drink_mnesia.hrl").
--include ("qlc.hrl").
+-include_lib ("stdlib/include/qlc.hrl").
 
 start_link () ->
 	supervisor:start_link({local, ?MODULE}, ?MODULE, []).

@@ -5,7 +5,7 @@
 -export ([send_command/2]).
 
 -include ("drink_mnesia.hrl").
--include ("qlc.hrl").
+-include_lib ("stdlib/include/qlc.hrl").
 -record (dmcomm_state, {
 			socket,
 			machine}).

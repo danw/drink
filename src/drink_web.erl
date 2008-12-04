@@ -5,4 +5,4 @@
 -include ("yaws_api.hrl").
 
 out(_Arg) ->
-    {html, "Drink!"}.
+    {json, "Drink!"}.

@@ -59,7 +59,7 @@
 -behaviour(gen_fsm).
 
 %-include("ejabberd.hrl").
--define (DEBUG, error_logger:info_msg).
+-define (DEBUG, debug).
 -define (INFO_MSG, error_logger:info_msg).
 -define (WARNING_MSG, error_logger:warning_msg).
 -define (ERROR_MSG, error_logger:error_msg).
@@ -104,6 +104,9 @@
 		dict,          % dict holding operation params and results
 		bind_q         % Queue for bind() requests
 	}).
+	
+debug(_,_) ->
+    not_needed.
 
 %%%----------------------------------------------------------------------
 %%% API
@@ -846,7 +849,7 @@ polish([], Res, Ref) ->
 connect_bind(S) ->
     Host = next_host(S#eldap.host, S#eldap.hosts),
     TcpOpts = [{packet, asn1}, {active, true}, {keepalive, true}, binary],
-    ?INFO_MSG("LDAP connection on ~s:~p", [Host, S#eldap.port]),
+    ?INFO_MSG("LDAP connection on ~s:~p~n", [Host, S#eldap.port]),
     case gen_tcp:connect(Host, S#eldap.port, TcpOpts) of
 	{ok, Socket} ->
 	    case bind_request(Socket, S) of

@@ -25,16 +25,16 @@ loop (waiting_for_socket, State) ->
 			inet:setopts(Socket, [{active, once}]),
 			{ok, {Address, _Port}} = inet:sockname(Socket),
 			Q = qlc:q([ X#machine.machine || X <- mnesia:table(machine), X#machine.public_ip =:= Address ]),
-			case mnesia:transaction(fun() -> qlc:eval(Q) end) of
+			Machine = case mnesia:transaction(fun() -> qlc:eval(Q) end) of
 				{atomic, [M]} ->
-					Machine = M,
-					gen_tcp:send(Socket, "OK Welcome to " ++ atom_to_list(Machine) ++ "\n");
+					gen_tcp:send(Socket, "OK Welcome to " ++ atom_to_list(M) ++ "\n"),
+					M;
 				{atomic, []} ->
-					Machine = nil,
-					gen_tcp:send(Socket, "OK Welcome to the Erlang Drink Server\n");
+					gen_tcp:send(Socket, "OK Welcome to the Erlang Drink Server\n"),
+					nil;
 				{aborted, _Reason} ->
-					Machine = nil,
-					gen_tcp:send(Socket, "OK Welcome to the Erlang Drink Server\n")
+					gen_tcp:send(Socket, "OK Welcome to the Erlang Drink Server\n"),
+					nil
 			end,
 			loop(normal, State#sunday_state{socket=Socket,machine=Machine});
 		_Else ->
@@ -42,21 +42,12 @@ loop (waiting_for_socket, State) ->
 	end;
 
 loop (normal, State) ->
-	#sunday_state{socket=Socket} = State,
+	Socket = State#sunday_state.socket,
 	receive
 		{tcp, Socket, Data} ->
-			[Command | Args] = string:tokens(binary_to_list(Data) -- "\r\n", " "),
-			case got_command(string:to_upper(Command), Args, State) of
-				{ok, Text, NewState} ->
-					send(State, "OK " ++ Text ++ "\n");
-				{raw, Text, NewState} ->
-					send(State, Text);
-				{error, Num, Text, NewState} ->
-					send(State, "ERR " ++ integer_to_list(Num) ++ " " ++ Text ++ "\n");
-				{exit, Text, NewState} ->
-					send(State, "OK " ++ Text ++ "\n"),
-					exit(quit)
-			end,
+		    % TODO: Make sure it's a full line and only a full line
+		    Line = binary_to_list(Data) -- "\r\n",
+			NewState = process_line(State, Line),
 			inet:setopts(Socket, [{active, once}]),
 			loop(normal, NewState);
 		{tcp_closed, Socket} ->
@@ -68,6 +59,21 @@ loop (normal, State) ->
 		_Else ->
 			loop(normal, State)
 	end.
+
+process_line(State, Line) ->
+    [Command | Args] = string:tokens(Line, " "),
+	case got_command(string:to_upper(Command), Args, State) of
+		{ok, Text, NewState} ->
+			send(State, "OK " ++ Text ++ "\n");
+		{raw, Text, NewState} ->
+			send(State, Text);
+		{error, Num, Text, NewState} ->
+			send(State, "ERR " ++ integer_to_list(Num) ++ " " ++ Text ++ "\n");
+		{exit, Text, NewState} ->
+			send(State, "OK " ++ Text ++ "\n"),
+			exit(quit)
+	end,
+	NewState.
 
 send(State, Str) ->
 	gen_tcp:send(State#sunday_state.socket, Str).

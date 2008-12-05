@@ -13,7 +13,9 @@ out(A) ->
         <<"userinfo/", UserBin/binary>> ->
             UserName = binary_to_list(UserBin),
             {ok, User} = user_auth:user(UserName),
-            userref_to_struct(User);
+            Ret = userref_to_struct(User),
+            user_auth:delete_ref(User),
+            Ret;
         <<"login">> ->
             nil;
         <<"setuser/", UserBin/binary>> ->

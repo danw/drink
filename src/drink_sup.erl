@@ -47,6 +47,13 @@ init ([]) ->
 		    100,
 		    worker,
 		    [gen_listener]},
+		    
+		   {finger_server_listener,
+		    {gen_listener, start_link, [?FINGER_SERVER_PORT, {finger_server, start_link, []}]},
+		    permanent,
+		    100,
+		    worker,
+		    [gen_listener]},
 
            {pam_auth,
             {epam, start_link, []},

@@ -91,6 +91,7 @@ process_line(State, Line) ->
                 true ->
                     case drink_machines_sup:is_machine_alive(Machine) of
                         true ->
+                            % TODO: interpret finger protocol
                             header(Machine) ++ machine_state(Machine) ++ footer();
                         false ->
                             io_lib:format("Machine is down~n", [])

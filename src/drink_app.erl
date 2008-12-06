@@ -24,7 +24,8 @@ yaws_conf() ->
 	GC0 = yaws_config:make_default_gconf(false, "drinkweb"),
 	GC = GC0#gconf{
 	    logdir = WebLog,
-	    flags = yaws:flag(GC0#gconf.flags, ?GC_COPY_ERRLOG, false)
+	    flags = yaws:flag(GC0#gconf.flags, ?GC_COPY_ERRLOG, false),
+	    cache_refresh_secs = 0
 	},
 	SC = #sconf{
 	    port = 80,

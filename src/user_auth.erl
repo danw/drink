@@ -4,7 +4,7 @@
 -export ([start_link/0]).
 -export ([init/1]).
 -export ([handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
--export ([user/1, auth/1, auth/2, admin/2, user_info/1, delete_ref/1, drop/3, add_credits/3, dec_credits/3]).
+-export ([user/1, user/2, auth/1, auth/2, admin/2, can_admin/1, user_info/1, delete_ref/1, drop/3, add_credits/3, dec_credits/3]).
 
 % for testing:
 -export ([ldap_set_credits/1]).
@@ -59,7 +59,7 @@ handle_call ({admin, Admin, Username}, _From, State) when is_reference(Admin), i
 		{ok, User} ->
 			case is_admin(Admin, State) of
 				true ->
-				    {ok, AdminUser} = get_user(Admin, State),
+				    {ok, AdminUser, _Perms} = get_from_ref(Admin, State),
 					{reply, {ok, create_user_ref(User, [read, write, ibutton], AdminUser#user.username, State)}, State};
 				false ->
 					{reply, {error, permission_denied}, State}
@@ -67,6 +67,8 @@ handle_call ({admin, Admin, Username}, _From, State) when is_reference(Admin), i
 		{error, Reason} ->
 			{reply, {error, Reason}, State}
 	end;
+handle_call ({can_admin, UserRef}, _From, State) when is_reference(UserRef) ->
+    {reply, is_admin(UserRef, State), State};
 handle_call ({user_info, UserRef}, _From, State) when is_reference(UserRef) ->
 	case get_from_ref(UserRef, State) of
 		{ok, UserInfo, Perms} ->
@@ -158,6 +160,15 @@ code_change (_OldVsn, State, _Extra) ->
 %%%%%%%%%%%%%%%%
 % External API %
 %%%%%%%%%%%%%%%%
+user(nil, Username) ->
+    user(Username);
+user(AdminUser, Username) ->
+    case can_admin(AdminUser) of
+        true ->
+            admin(AdminUser, Username);
+        _false ->
+            user(Username)
+    end.
 user(Username) when is_list(Username) ->
 	gen_server:call(?MODULE, {user, Username}).
 
@@ -172,6 +183,9 @@ admin(User, Username) when is_reference(User), is_list(Username) ->
 
 user_info(UserRef) when is_reference(UserRef) ->
 	gen_server:call(?MODULE, {user_info, UserRef}).
+
+can_admin(UserRef) when is_reference(UserRef) ->
+    gen_server:call(?MODULE, {can_admin, UserRef}).
 
 delete_ref(UserRef) when is_reference(UserRef) ->
 	gen_server:cast(?MODULE, {delete_ref, UserRef}).

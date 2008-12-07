@@ -79,7 +79,7 @@ handle_call ({slots}, _From, State) ->
 	Q = qlc:q([ X || X <- mnesia:table(slot), X#slot.machine =:= State#dmstate.machineid ]),
 	case mnesia:transaction(fun() -> qlc:eval(Q) end) of
 		{atomic, List} ->
-			{reply, {ok, List}, State};
+			{reply, {ok, lists:sort(List)}, State};
 		{aborted, Reason} ->
 			{reply, {error, Reason}, State}
 	end;

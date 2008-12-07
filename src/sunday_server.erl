@@ -248,7 +248,7 @@ got_command("STAT", [Slot], State) ->
 got_command("STAT", _, State) ->
 	case drink_machine:slots(State#sunday_state.machine) of
 		{ok, Slots} ->
-			{raw, slot_status_reply(lists:sort(Slots)), State};
+			{raw, slot_status_reply(Slots), State};
 		{error, machine_down} ->
 			{error, 0, "Machine is down.", State};
 		{error, invalid_machine} ->

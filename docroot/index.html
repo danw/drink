@@ -17,7 +17,7 @@
 	</form>
 	
 	<h1>Current User:</h1>
-	<iframe id="currentuser" src="/drink/currentuser" width="90%" height="40px" border="1px"></iframe><br>
+	<iframe id="currentuser" src="/drink/currentuser" width="90%" height="30px" border="1px"></iframe><br>
 	<a href="#" onclick="document.getElementById('currentuser').src = '/drink/currentuser'; return false;">reload</a>
 	
 	<form action="/drink/userinfo" method="get" accept-charset="utf-8" target="popup">
@@ -29,6 +29,10 @@
 	
 	<h1>Logout</h1>
 	<a href="/drink/logout" target="popup">Logout</a>
+	
+	<h1>Connected Machines</h1>
+	<iframe id="connectedmachines" src="/drink/machines" width="90%" height="90px" border="1px"></iframe><br>
+	<a href="#" onclick="document.getElementById('connectedmachines').src = '/drink/machines'; return false;">reload</a>
 
 </body>
 </html>

@@ -4,6 +4,7 @@
 
 -include ("yaws_api.hrl").
 -include ("user.hrl").
+-include ("drink_mnesia.hrl").
 
 -record (ses, {user=nil}).
 
@@ -25,6 +26,8 @@ out(A) ->
                         _Else ->
                             error(invalid_args)
                     end;
+                "machines" ->
+                    error(wrong_method);
                 "logout" ->
                     error(wrong_method);
                 "userinfo" ->
@@ -57,6 +60,8 @@ out(A) ->
                         User ->
                             userref_to_struct(User)
                     end;
+                "machines" ->
+                    ok({struct, machines(drink_machines_sup:machines())});
                 "logout" ->
                     yaws_api:replace_cookie_session(Cookie, #ses{}),
                     ok(true);
@@ -78,6 +83,43 @@ error(Reason) when is_atom(Reason) ->
     error(atom_to_list(Reason));
 error(Reason) ->
     {struct, [{status, "error"}, {reason, Reason}]}.
+
+machines([]) ->
+    [];
+machines([M|Machines]) ->
+    [{M, machine_stat(M)}] ++ machines(Machines).
+
+machine_stat(Machine) ->
+    case {drink_machine:is_alive(Machine), drink_machine:temperature(Machine), drink_machine:slots(Machine)} of
+        {true, {ok, Temperature}, {ok, Slots}} ->
+            {struct, [
+                {connected, true},
+                {temperature, Temperature},
+                {slots, {struct, slots(Slots)}}
+            ]};
+        {true, {error, no_temp}, {ok, Slots}} ->
+            {struct, [
+                {connected, true},
+                {temperature, false},
+                {slots, {struct, slots(Slots)}}
+            ]};
+        _else ->
+            {struct, [
+                {connected, false}
+            ]}
+    end.
+
+slots([]) ->
+    [];
+slots([S|Slots]) ->
+    [{integer_to_list(S#slot.num),slot_info(S)}] ++ slots(Slots).
+
+slot_info(Slot) ->
+    {struct, [
+        {name, Slot#slot.name},
+        {price, Slot#slot.price},
+        {available, Slot#slot.avail}
+    ]}.
 
 userref_to_struct(UserRef) ->
     case user_auth:user_info(UserRef) of

@@ -269,7 +269,7 @@ deduct(UserInfo, Cost, MoneyReason, State) when is_tuple(UserInfo) ->
 					MoneyLog = #money_log{
 					    time = erlang:universaltime(),
 					    username = UserInfo#user.username,
-					    amount = Cost,
+					    amount = 0 - Cost,
 					    reason = MoneyReason,
 					    admin = UserInfo#user.adminuser
 					},

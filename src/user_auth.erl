@@ -4,7 +4,7 @@
 -export ([start_link/0]).
 -export ([init/1]).
 -export ([handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
--export ([user/1, user/2, auth/1, auth/2, admin/2, can_admin/1, user_info/1, delete_ref/1, drop/3, add_credits/3, dec_credits/3]).
+-export ([user/1, user/2, auth/1, auth/2, admin/2, can_admin/1, user_info/1, delete_ref/1, drop/3, add_credits/3, dec_credits/3, set_admin/2]).
 
 % for testing:
 -export ([ldap_set_credits/1]).
@@ -131,6 +131,23 @@ handle_call ({dec_credits, UserRef, Credits, CallReason}, _From, State) when is_
         {error, Reason} ->
             {reply, {error, Reason}, State}
     end;
+handle_call ({set_admin, UserRef, Admin}, _From, State) when is_reference(UserRef), is_atom(Admin) ->
+    case get_from_ref(UserRef, State) of
+        {ok, UserInfo, Perms} ->
+            case can_write(Perms) of
+                true ->
+                    case user_set_admin(UserInfo, Admin, State) of
+                        {ok, _NewUserInfo} ->
+                            {reply, ok, State};
+                        {error, Reason} ->
+                            {reply, {error, Reason}, State}
+                    end;
+                false ->
+                    {reply, {error, permission_denied}, State}
+            end;
+        {error, Reason} ->
+            {reply, {error, Reason}, State}
+    end;
 
 handle_call (_Request, _From, State) ->
 	{reply, {error, unknown_call}, State}.
@@ -199,9 +216,16 @@ add_credits(UserRef, Credits, Reason) when is_reference(UserRef), is_integer(Cre
 dec_credits(UserRef, Credits, Reason) when is_reference(UserRef), is_integer(Credits) ->
     gen_server:call(?MODULE, {dec_credits, UserRef, Credits, Reason}).
 
+set_admin(UserRef, Admin) when is_reference(UserRef), is_atom(Admin) ->
+    gen_server:call(?MODULE, {set_admin, UserRef, Admin}).
+
 %%%%%%%%%%%%%%%%%%%%
 % Internal Helpers %
 %%%%%%%%%%%%%%%%%%%%
+valid_admin_setting(true) -> ok;
+valid_admin_setting(false) -> ok;
+valid_admin_setting(_) -> {error, invalid_arg}.
+
 ldap_attribute_val("ibutton", Val) ->
 	Val;
 ldap_attribute_val("drinkAdmin", Val) ->
@@ -214,6 +238,14 @@ ldap_attribute_val("drinkBalance", Val) ->
 	Int;
 ldap_attribute_val(_Attr, Val) ->
 	hd(Val).
+
+val_to_ldap_attr(admin, Val) ->
+    case Val of
+        true ->
+            "1";
+        false ->
+            "0"
+    end.
 
 ldap_attribute(Attr, {eldap_entry, _Dn, Attrs}) ->
 	ldap_attribute(Attr, Attrs);
@@ -289,6 +321,28 @@ refund(UserInfo, Amount, MoneyReason, State) when is_tuple(UserInfo) ->
 			error_logger:error_msg("Failed to refund ~s ~b credits: ~p~n", [UserInfo#user.username, Amount, Reason]),
 			{error, Reason}
 	end.
+
+user_set_admin(UserInfo, Admin, State) when is_tuple(UserInfo) ->
+    case valid_admin_setting(Admin) of
+        ok ->
+            case get_user(UserInfo#user.username, State) of
+                {ok, User} ->
+                    NewUserInfo = User#user{admin = Admin},
+                    case catch ldap_set_admin(NewUserInfo) of
+                        ok ->
+                            ets:insert(State#uastate.usertable, NewUserInfo),
+                            {ok, NewUserInfo};
+                        {error, Reason} ->
+                            {error, Reason};
+                        Reason ->
+                            {error, Reason}
+                    end;
+                {error, Reason} ->
+                    {error, Reason}
+            end;
+        {error, Reason} ->
+            {error, Reason}
+    end.
 
 drop_slot(UserInfo, Machine, Slot, State) when is_tuple(UserInfo), is_atom(Machine), is_integer(Slot) ->
 	{ok, SlotInfo} = drink_machine:slot_info(Machine, Slot),
@@ -417,3 +471,8 @@ ldap_set_credits(UserInfo) ->
     eldap:modify(eldap_user, 
         "uid=" ++ UserInfo#user.username ++ ",ou=users,dc=csh,dc=rit,dc=edu",
         [eldap:mod_replace("drinkBalance", [integer_to_list(UserInfo#user.credits)])]).
+
+ldap_set_admin(UserInfo) ->
+    eldap:modify(eldap_user,
+        "uid=" ++ UserInfo#user.username ++ ",ou=users,dc=csh,dc=rit,dc=edu",
+        [eldap:mod_replace("drinkAdmin", [val_to_ldap_attr(admin, UserInfo#user.admin)])]).

@@ -26,6 +26,26 @@ out(A) ->
                         _Else ->
                             error(invalid_args)
                     end;
+                "moduser" ->
+                    case {Session#ses.user, yaws_api:postvar(A, "username"), yaws_api:postvar(A, "attr"), yaws_api:postvar(A, "value")} of
+                        {nil, _, _, _} ->
+                            error(permission_denied);
+                        {AdminUser, {ok, UserName}, {ok, Attr}, {ok, Value}} ->
+                            case user_auth:admin(AdminUser, UserName) of
+                                {ok, User} ->
+                                    mod_user(User, list_to_atom(Attr), Value);
+                                {error, permission_denied} ->
+                                    error(permission_denied);
+                                {error, invalid_user} ->
+                                    error(invalid_user);
+                                {error, Reason} ->
+                                    error(Reason);
+                                _Else ->
+                                    error(unknown)
+                            end;
+                        _ ->
+                            error(invalid_args)
+                    end;
                 "machines" ->
                     error(wrong_method);
                 "logout" ->
@@ -66,6 +86,8 @@ out(A) ->
                     yaws_api:replace_cookie_session(Cookie, #ses{}),
                     ok(true);
                 "login" ->
+                    error(wrong_method);
+                "moduser" ->
                     error(wrong_method);
                 _Else ->
                     error(unknown_path)
@@ -133,6 +155,21 @@ userref_to_struct(UserRef) ->
         {error, _Reason} ->
             error(invalid_user)
     end.
+
+mod_user(UserRef, admin, "true") -> mod_user(UserRef, admin, true);
+mod_user(UserRef, admin, "false") -> mod_user(UserRef, admin, false);
+mod_user(UserRef, admin, Value) when is_atom(Value) ->
+    case user_auth:set_admin(UserRef, Value) of
+        ok ->
+            userref_to_struct(UserRef);
+        {error, Reason} ->
+            error(Reason)
+    end;
+mod_user(_UserRef, modcredits, _Value) -> error(not_implemented);
+mod_user(_UserRef, delibutton, _Value) -> error(not_implemented);
+mod_user(_UserRef, addibutton, _Value) -> error(not_implemented);
+mod_user(_, _, _) ->
+    error(invalid_args).
 
 session_start(A) ->
     H = A#arg.headers,

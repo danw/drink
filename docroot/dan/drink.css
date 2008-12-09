@@ -47,3 +47,8 @@ table {
 #user_admin_mod_form td {
     border-width: 0 0 1px 0;
 }
+
+#user_admin_mod_credits {
+    width: 100px;
+}
+}

@@ -27,13 +27,16 @@ out(A) ->
                             error(invalid_args)
                     end;
                 "moduser" ->
-                    case {Session#ses.user, yaws_api:postvar(A, "username"), yaws_api:postvar(A, "attr"), yaws_api:postvar(A, "value")} of
-                        {nil, _, _, _} ->
+                    case {Session#ses.user, yaws_api:postvar(A, "username"),
+                                            yaws_api:postvar(A, "attr"),
+                                            yaws_api:postvar(A, "value"),
+                                            yaws_api:postvar(A, "reason")} of
+                        {nil, _, _, _, _} ->
                             error(permission_denied);
-                        {AdminUser, {ok, UserName}, {ok, Attr}, {ok, Value}} ->
+                        {AdminUser, {ok, UserName}, {ok, Attr}, {ok, Value}, ModReason} ->
                             case user_auth:admin(AdminUser, UserName) of
                                 {ok, User} ->
-                                    mod_user(User, list_to_atom(Attr), Value);
+                                    mod_user(User, list_to_atom(Attr), Value, ModReason);
                                 {error, permission_denied} ->
                                     error(permission_denied);
                                 {error, invalid_user} ->
@@ -156,19 +159,32 @@ userref_to_struct(UserRef) ->
             error(invalid_user)
     end.
 
-mod_user(UserRef, admin, "true") -> mod_user(UserRef, admin, true);
-mod_user(UserRef, admin, "false") -> mod_user(UserRef, admin, false);
-mod_user(UserRef, admin, Value) when is_atom(Value) ->
+mod_user(UserRef, admin, "true", ModReason) -> mod_user(UserRef, admin, true, ModReason);
+mod_user(UserRef, admin, "false", ModReason) -> mod_user(UserRef, admin, false, ModReason);
+mod_user(UserRef, admin, Value, _) when is_atom(Value) ->
     case user_auth:set_admin(UserRef, Value) of
         ok ->
             userref_to_struct(UserRef);
         {error, Reason} ->
             error(Reason)
     end;
-mod_user(_UserRef, modcredits, _Value) -> error(not_implemented);
-mod_user(_UserRef, delibutton, _Value) -> error(not_implemented);
-mod_user(_UserRef, addibutton, _Value) -> error(not_implemented);
-mod_user(_, _, _) ->
+mod_user(UserRef, modcredits, Value, ModReason) when is_list(Value) ->
+    case string:to_integer(Value) of
+        {error, _Reason} ->
+            error(invalid_args);
+        {IntValue, _Rest} ->
+            mod_user(UserRef, modcredits, IntValue, ModReason)
+    end;
+mod_user(UserRef, modcredits, Value, {ok, ModReason}) when is_integer(Value) ->
+    case user_auth:mod_credits(UserRef, Value, list_to_atom(ModReason)) of
+        ok ->
+            userref_to_struct(UserRef);
+        {error, Reason} ->
+            error(Reason)
+    end;
+mod_user(_UserRef, delibutton, _Value, _ModReason) -> error(not_implemented);
+mod_user(_UserRef, addibutton, _Value, _ModReason) -> error(not_implemented);
+mod_user(_, _, _, _) ->
     error(invalid_args).
 
 session_start(A) ->

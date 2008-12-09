@@ -4,7 +4,7 @@
 -export ([start_link/0]).
 -export ([init/1]).
 -export ([handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
--export ([user/1, user/2, auth/1, auth/2, admin/2, can_admin/1, user_info/1, delete_ref/1, drop/3, add_credits/3, dec_credits/3, set_admin/2]).
+-export ([user/1, user/2, auth/1, auth/2, admin/2, can_admin/1, user_info/1, delete_ref/1, drop/3, add_credits/3, dec_credits/3, mod_credits/3, set_admin/2]).
 
 % for testing:
 -export ([ldap_set_credits/1]).
@@ -215,6 +215,11 @@ add_credits(UserRef, Credits, Reason) when is_reference(UserRef), is_integer(Cre
 
 dec_credits(UserRef, Credits, Reason) when is_reference(UserRef), is_integer(Credits) ->
     gen_server:call(?MODULE, {dec_credits, UserRef, Credits, Reason}).
+
+mod_credits(UserRef, Credits, Reason) when is_integer(Credits), Credits > 0 ->
+    add_credits(UserRef, Credits, Reason);
+mod_credits(UserRef, Credits, Reason) when is_integer(Credits), Credits < 0 ->
+    dec_credits(UserRef, 0 - Credits, Reason).
 
 set_admin(UserRef, Admin) when is_reference(UserRef), is_atom(Admin) ->
     gen_server:call(?MODULE, {set_admin, UserRef, Admin}).

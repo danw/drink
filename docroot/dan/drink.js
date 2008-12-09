@@ -127,10 +127,24 @@ function get_user_info() {
 function got_user_info(userinfo) {
     current_edit_user = userinfo;
     html = ['<table><tr><th>Username:</th><td>', userinfo.username, '</td></tr><tr><th>Credits:</th><td>',
-            userinfo.credits, '</td></tr><tr><th>iButtons: </th><td>',
+            userinfo.credits, '<form onsubmit="modcredits();return false;"><input type="text" id="user_admin_mod_credits"><input type="submit" value="Mod &rarr;"></form></td></tr><tr><th>iButtons: </th><td>',
             userinfo.ibuttons.join(), '</td></tr><tr><th>Admin:</th><td>',
             userinfo.admin, ' <a href="#" onclick="toggle_admin(); return false;">Toggle</a></td></tr></table>'];
     $('#user_admin_mod_form').empty().append(html.join(''));
+}
+
+function modcredits() {
+    diff = parseInt($('#user_admin_mod_credits').val());
+    if(diff == 0)
+        return;
+    if(diff == NaN) {
+        alert("Not a Number!");
+        return;
+    }
+    reason = 'add_money';
+    $('#user_admin_mod_form a').empty();
+    $('#user_admin_mod_form form').empty();
+    mod_user(current_edit_user.username, "modcredits", diff, reason);
 }
 
 function toggle_admin() {
@@ -138,12 +152,12 @@ function toggle_admin() {
         return;
     $('#user_admin_mod_form a').empty();
     $('#user_admin_mod_form form').empty();
-    mod_user(current_edit_user.username, "admin", !current_edit_user.admin);
+    mod_user(current_edit_user.username, "admin", !current_edit_user.admin, '');
 }
 
-function mod_user(username, attr, value) {
+function mod_user(username, attr, value, reason) {
     $.ajax({
-        data: {username: username, attr: attr, value: value},
+        data: {username: username, attr: attr, value: value, reason: reason},
         dataType: 'json',
         url: '/drink/moduser',
         type: 'POST',
@@ -154,7 +168,7 @@ function mod_user(username, attr, value) {
         success: function(data, status) {
             if(data.status == 'error') {
                 got_user_info(current_edit_user);
-                alert('Error setting user info');
+                alert('Error setting user info, reason:' + data.reason);
             } else {
                 if(current_edit_user.username == current_user.username)
                     current_user = data.data;

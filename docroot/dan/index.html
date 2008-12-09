@@ -1,0 +1,41 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN"
+   "http://www.w3.org/TR/html4/strict.dtd">
+
+<html lang="en">
+<head>
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+	<title>index</title>
+	<script src="jquery-1.2.6.js" type="text/javascript" charset="utf-8"></script>
+	<script src="drink.js" type="text/javascript" charset="utf-8"></script>
+	<link rel="stylesheet" href="drink.css" type="text/css" media="screen" title="" charset="utf-8">
+</head>
+<body>
+	<div class="logging_in">
+		Logging in...
+	</div>
+	<div class="logged_out">
+		<form id="login_form">
+			<input type="text" id="login_username" value="username"><input type="password" id="login_password"> <input type="submit" value="Login &rarr;">
+		</form>
+	</div>
+	<div class="logged_in">
+		<p>Logged in as: <span id="currentuser"></span><span class="admin"> (admin)</span> <a href="#" onclick="logout(); return false;">Logout</a></p>
+		Balance: <span id="currentuser_balance"></span> credits
+	</div>
+	
+	<div>
+		<h2>Drink Machines</h2>
+		<ul id="machines">
+		</ul>
+	</div>
+		
+	<div class="admin">
+		<h2>User Admin</h2>
+		<form id="user_admin_get_form">
+		<input type="text" id="user_admin_username" value="username"><input type="submit" value="Get Info &rarr;">
+		</form>
+		<div id="user_admin_mod_form">
+		</div>
+	</div>
+</body>
+</html>

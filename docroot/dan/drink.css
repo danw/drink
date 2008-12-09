@@ -1,0 +1,49 @@
+.logged_in {
+    display: none;
+}
+
+.logging_in {
+    display: none;
+}
+
+.admin {
+    display: none;
+}
+
+td, th {
+    padding: 2px 6px;
+    border-style: solid;
+    border-color: black gray;
+}
+
+td {
+    border-width: 0 1px 1px 0;
+}
+
+th {
+    border-width: 0 0 1px 0;
+    text-align: center;
+}
+
+td.slotnum, td.slotprice, td.slotavail {
+    text-align: center;
+}
+
+table {
+    border-spacing: 0px;
+    border-width: 0 0 0 1px;
+    border-style: solid;
+    border-color: gray;
+}
+
+#user_admin_mod_form table {
+    border-width: 0;
+}
+
+#user_admin_mod_form th {
+    text-align: right;
+}
+
+#user_admin_mod_form td {
+    border-width: 0 0 1px 0;
+}

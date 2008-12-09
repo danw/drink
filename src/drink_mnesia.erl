@@ -1,6 +1,6 @@
 -module (drink_mnesia).
 -export ([initialize/0, upgrade/0]).
--export ([log_drop/1, log_money/1]).
+-export ([log_drop/1, log_money/1, log_temperature/1]).
 
 -include ("drink_mnesia.hrl").
 
@@ -42,22 +42,74 @@ initialize() ->
 		{index, [time, username, slot, status]},
 		{attributes, record_info(fields, drop_log)}]).
 
+mysql_init() ->
+    mysql:prepare(log_temperature, <<"INSERT INTO temperature_log VALUES (?, ?, ?)">>),
+    mysql:prepare(log_money, <<"INSERT INTO money_log VALUES (?, ?, ?, ?, ?, ?)">>),
+    mysql:prepare(log_drop, <<"INSERT INTO drop_log VALUES (?, ?, ?, ?, ?)">>).
+
 log_drop(Drop) ->
-    case mnesia:transaction(fun() -> mnesia:write(Drop) end) of
-        {atomic, ok} ->
-            ok;
-        {aborted, Reason} ->
-            error_logger:error_msg("Drop Log Error! ~p~n", Reason),
-            {error, Reason}
+    case mysql:execute(drink_log, log_drop, [
+                                Drop#drop_log.machine, 
+                                Drop#drop_log.slot, 
+                                Drop#drop_log.username, 
+                                Drop#drop_log.time,
+                                Drop#drop_log.status]) of
+        {error, {no_such_statement, log_drop}} ->
+            mysql_init(),
+            log_drop(Drop);
+        {error, _MySqlRes} ->
+            case mnesia:transaction(fun() -> mnesia:write(Drop) end) of
+                {atomic, ok} ->
+                    ok;
+                {aborted, Reason} ->
+                    error_logger:error_msg("Drop Log Error! ~p~n", Reason),
+                    {error, Reason}
+            end;
+        {updated, _MySqlRes} ->
+            ok
     end.
 
 log_money(Money) ->
-    case mnesia:transaction(fun() -> mnesia:write(Money) end) of
-        {atomic, ok} ->
-            ok;
-        {aborted, Reason} ->
-            error_logger:error_msg("Money Log Error! ~p~n", Reason),
-            {error, Reason}
+    case mysql:execute(drink_log, log_money, [
+                                Money#money_log.time,
+                                Money#money_log.username,
+                                Money#money_log.admin,
+                                Money#money_log.amount,
+                                Money#money_log.direction,
+                                Money#money_log.reason]) of
+        {error, {no_such_statement, log_money}} ->
+            mysql_init(),
+            log_money(Money);
+        {error, _MySqlRes} ->
+            case mnesia:transaction(fun() -> mnesia:write(Money) end) of
+                {atomic, ok} ->
+                    ok;
+                {aborted, Reason} ->
+                    error_logger:error_msg("Money Log Error! ~p~n", Reason),
+                    {error, Reason}
+            end;
+        {updated, _MySqlRes} ->
+            ok
+    end.
+
+log_temperature(Temperature) ->
+    case mysql:execute(drink_log, log_temperature, [
+                                Temperature#temperature.machine,
+                                Temperature#temperature.time,
+                                Temperature#temperature.temperature]) of
+        {error, {no_such_statement, log_temperature}} ->
+            mysql_init(),
+            log_temperature(Temperature);
+        {error, _MySqlRes} ->
+            case mnesia:transaction(fun() -> mnesia:write(Temperature) end) of
+                {atomic, ok} ->
+                    ok;
+                {aborted, Reason} ->
+                    error_logger:error_msg("Temperature Log Error! ~p~n", Reason),
+                    {error, Reason}
+            end;
+        {updated, _MySqlRes} ->
+            ok
     end.
 
 upgrade() ->

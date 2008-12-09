@@ -7,4 +7,5 @@ mnesia_data
 priv/eldap.conf
 priv/epam
 priv/key.pem
+priv/dbpass
 web_log

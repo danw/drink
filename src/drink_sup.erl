@@ -12,6 +12,8 @@ start_link (Args) ->
 	supervisor:start_link({local,?MODULE}, ?MODULE, Args).
 
 init ([]) ->
+    {ok, Bin} = file:read_file(filename:join(code:priv_dir(drink), "dbpass")),
+    LogDBPassword = binary_to_list(Bin),
 	{ok, {{one_for_one, 10, 3},  % One for one restart, shutdown after 10 restarts within 3 seconds
 		  [{machine_listener,    % Our first child, the drink_machine_listener
 			{gen_listener, start_link, [?MACHINE_LISTEN_PORT, {drink_machine_comm, start_link, []}]},
@@ -60,7 +62,15 @@ init ([]) ->
             permanent,
             100,
             worker,
-            [epam]}
+            [epam]},
+            
+           {mysql_conn,
+            {mysql, start_link, [drink_log, ?LOG_DB_SERVER, undefined, 
+                                 ?LOG_DB_USERNAME, LogDBPassword, ?LOG_DB_DATABASE, fun mysql_log/4]},
+            permanent,
+            100,
+            worker,
+            [mysql]}
 		   
             %          {web_server,
             % {drink_web, start_link, []},
@@ -70,3 +80,6 @@ init ([]) ->
             % [drink_web]}
 		  ]
 		}}.
+
+mysql_log(_Module, _Line, _Level, _Fun) ->
+    ok.

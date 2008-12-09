@@ -119,12 +119,7 @@ handle_info ({got_response, CommPid, Response}, State) ->
 						time = erlang:universaltime(),
 						temperature = Temperature
 					},
-					case mnesia:transaction(fun() -> mnesia:write(T) end) of
-						{aborted, Reason} ->
-							error_logger:error_msg("mnesia Temperature Write failed: ~p", Reason);
-						{atomic, ok} ->
-							ok
-					end,
+					drink_mnesia:log_temperature(T),
 					{noreply, State#dmstate{latest_temp = Temperature}};
 				{slot_status, Status} ->
 					update_slot_status(Status, State),

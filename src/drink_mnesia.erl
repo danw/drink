@@ -66,6 +66,7 @@ log_drop(Drop) ->
                     {error, Reason}
             end;
         {updated, _MySqlRes} ->
+            % todo: check if there are records in mnesia to move to mysql
             ok
     end.
 
@@ -89,6 +90,7 @@ log_money(Money) ->
                     {error, Reason}
             end;
         {updated, _MySqlRes} ->
+            % todo: check if there are records in mnesia to move to mysql
             ok
     end.
 
@@ -109,6 +111,7 @@ log_temperature(Temperature) ->
                     {error, Reason}
             end;
         {updated, _MySqlRes} ->
+            % todo: check if there are records in mnesia to move to mysql
             ok
     end.
 

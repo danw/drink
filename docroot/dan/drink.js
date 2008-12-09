@@ -127,21 +127,48 @@ function get_user_info() {
 function got_user_info(userinfo) {
     current_edit_user = userinfo;
     html = ['<table><tr><th>Username:</th><td>', userinfo.username, '</td></tr><tr><th>Credits:</th><td>',
-            userinfo.credits, '<form onsubmit="modcredits();return false;"><input type="text" id="user_admin_mod_credits"><input type="submit" value="Mod &rarr;"></form></td></tr><tr><th>iButtons: </th><td>',
+            userinfo.credits, '<form onsubmit="modcredits();return false;"><select id="user_admin_mod_reason" onchange="modcredits_reason_change();">',
+            '<option value="add_money">Add Money</option>',
+            '<option value="fix_amount">Fix Amount</option>',
+            '<option value="other">Other</option>',
+            '</select><input type="text" id="user_admin_mod_credits"><input type="submit" value="Mod &rarr;"></form>',
+            '</td></tr><tr><th>iButtons: </th><td>',
             userinfo.ibuttons.join(), '</td></tr><tr><th>Admin:</th><td>',
             userinfo.admin, ' <a href="#" onclick="toggle_admin(); return false;">Toggle</a></td></tr></table>'];
     $('#user_admin_mod_form').empty().append(html.join(''));
 }
 
+function modcredits_reason_change() {
+    reason = $('#user_admin_mod_reason');
+    credits = $('#user_admin_mod_credits');
+    if(reason.val() == 'fix_amount' && credits.val() == '') {
+        credits.val(current_edit_user.credits);
+    }
+    if(reason.val() == 'add_money' && credits.val() == '' + current_edit_user.credits) {
+        credits.val('');
+    }
+}
+
 function modcredits() {
     diff = parseInt($('#user_admin_mod_credits').val());
-    if(diff == 0)
-        return;
     if(diff == NaN) {
         alert("Not a Number!");
         return;
     }
-    reason = 'add_money';
+    reason = $('#user_admin_mod_reason').val();
+    if(reason == 'other') {
+        while(reason == 'other' || reason == '')
+            reason = prompt("Please enter reason: (lower case with underscores)");
+        if(reason == null)
+            return;
+        if(!confirm("Press OK if the value is the difference of they're current balance, Cancel if it's the full value.")) {
+            diff = diff - current_edit_user.credits;
+        }
+    } else if(reason == 'fix_amount') {
+        diff = diff - current_edit_user.credits;
+    }
+    if(diff == 0)
+        return;
     $('#user_admin_mod_form a').empty();
     $('#user_admin_mod_form form').empty();
     mod_user(current_edit_user.username, "modcredits", diff, reason);

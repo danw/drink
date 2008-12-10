@@ -113,10 +113,10 @@ handle_info ({got_response, CommPid, Response}, State) ->
 				drop_nack ->
 					error_logger:error_msg("Drop Nack Received while not dropping!"),
 					{noreply, State};
-				{temperature, _DateTime, Temperature} ->
+				{temperature, DateTime, Temperature} ->
 					T = #temperature{
 						machine = State#dmstate.machineid, 
-						time = erlang:universaltime(),
+						time = DateTime,
 						temperature = Temperature
 					},
 					drink_mnesia:log_temperature(T),

@@ -462,7 +462,7 @@ drop_slot(UserInfo, Machine, Slot, State) when is_tuple(UserInfo), is_atom(Machi
 		{ok, NewUserInfo} ->
 		    DropLog = #drop_log{
 		        machine = Machine,
-		        slot = Slot,
+		        slot = SlotInfo#slot.name,
 		        username = UserInfo#user.username,
 		        time = erlang:universaltime()
 		    },

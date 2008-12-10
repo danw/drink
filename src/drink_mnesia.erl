@@ -50,9 +50,9 @@ mysql_init() ->
 log_drop(Drop) ->
     Status = io_lib:format("~w", [Drop#drop_log.status]),
     case mysql:execute(drink_log, log_drop, [
-                                Drop#drop_log.machine, 
-                                Drop#drop_log.slot, 
-                                Drop#drop_log.username, 
+                                Drop#drop_log.machine,
+                                Drop#drop_log.slot,
+                                Drop#drop_log.username,
                                 Drop#drop_log.time,
                                 Status]) of
         {error, {no_such_statement, log_drop}} ->

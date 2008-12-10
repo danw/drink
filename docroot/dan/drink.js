@@ -156,7 +156,8 @@ function addiButton() {
 function removeiButton(ibutton) {
     if(current_edit_user == false)
         return;
-    mod_user(current_edit_user.username, "delibutton", ibutton, '');
+    if(confirm("Are you sure you want to delete: " + ibutton))
+        mod_user(current_edit_user.username, "delibutton", ibutton, '');
 }
 
 function modcredits_reason_change() {
@@ -190,20 +191,18 @@ function modcredits() {
     }
     if(diff == 0)
         return;
-    $('#user_admin_mod_form a').empty();
-    $('#user_admin_mod_form form').empty();
     mod_user(current_edit_user.username, "modcredits", diff, reason);
 }
 
 function toggle_admin() {
     if(current_edit_user == false)
         return;
-    $('#user_admin_mod_form a').empty();
-    $('#user_admin_mod_form form').empty();
     mod_user(current_edit_user.username, "admin", !current_edit_user.admin, '');
 }
 
 function mod_user(username, attr, value, reason) {
+    $('#user_admin_mod_form a').empty();
+    $('#user_admin_mod_form form').empty();
     $.ajax({
         data: {username: username, attr: attr, value: value, reason: reason},
         dataType: 'json',

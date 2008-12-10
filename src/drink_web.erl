@@ -182,8 +182,20 @@ mod_user(UserRef, modcredits, Value, {ok, ModReason}) when is_integer(Value) ->
         {error, Reason} ->
             error(Reason)
     end;
-mod_user(_UserRef, delibutton, _Value, _ModReason) -> error(not_implemented);
-mod_user(_UserRef, addibutton, _Value, _ModReason) -> error(not_implemented);
+mod_user(UserRef, delibutton, Value, _ModReason) ->
+    case user_auth:del_ibutton(UserRef, Value) of
+        ok ->
+            userref_to_struct(UserRef);
+        {error, Reason} ->
+            error(Reason)
+    end;
+mod_user(UserRef, addibutton, Value, _ModReason) ->
+    case user_auth:add_ibutton(UserRef, Value) of
+        ok ->
+            userref_to_struct(UserRef);
+        {error, Reason} ->
+            error(Reason)
+    end;
 mod_user(_, _, _, _) ->
     error(invalid_args).
 

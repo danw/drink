@@ -4,7 +4,9 @@
 -export ([start_link/0]).
 -export ([init/1]).
 -export ([handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
--export ([user/1, user/2, auth/1, auth/2, admin/2, can_admin/1, user_info/1, delete_ref/1, drop/3, add_credits/3, dec_credits/3, mod_credits/3, set_admin/2]).
+-export ([user/1, user/2, auth/1, auth/2, admin/2, can_admin/1, 
+          user_info/1, delete_ref/1, drop/3, add_credits/3, 
+          dec_credits/3, mod_credits/3, set_admin/2, add_ibutton/2, del_ibutton/2]).
 
 % for testing:
 -export ([ldap_set_credits/1]).
@@ -148,6 +150,40 @@ handle_call ({set_admin, UserRef, Admin}, _From, State) when is_reference(UserRe
         {error, Reason} ->
             {reply, {error, Reason}, State}
     end;
+handle_call ({add_ibutton, UserRef, IButton}, _From, State) when is_reference(UserRef), is_list(IButton) ->
+    case get_from_ref(UserRef, State) of
+        {ok, UserInfo, Perms} ->
+            case can_write(Perms) of
+                true ->
+                    case user_add_ibutton(UserInfo, IButton, State) of
+                        {ok, _NewUserInfo} ->
+                            {reply, ok, State};
+                        {error, Reason} ->
+                            {reply, {error, Reason}, State}
+                    end;
+                false ->
+                    {reply, {error, permission_denied}, State}
+            end;
+        {error, Reason} ->
+            {reply, {error, Reason}, State}
+    end;
+handle_call ({del_ibutton, UserRef, IButton}, _From, State) when is_reference(UserRef), is_list(IButton) ->
+    case get_from_ref(UserRef, State) of
+        {ok, UserInfo, Perms} ->
+            case can_write(Perms) of
+                true ->
+                    case user_del_ibutton(UserInfo, IButton, State) of
+                        {ok, _NewUserInfo} ->
+                            {reply, ok, State};
+                        {error, Reason} ->
+                            {reply, {error, Reason}, State}
+                    end;
+                false ->
+                    {reply, {error, permission_denied}, State}
+            end;
+        {error, Reason} ->
+            {reply, {error, Reason}, State}
+    end;
 
 handle_call (_Request, _From, State) ->
 	{reply, {error, unknown_call}, State}.
@@ -224,12 +260,35 @@ mod_credits(UserRef, Credits, Reason) when is_integer(Credits), Credits < 0 ->
 set_admin(UserRef, Admin) when is_reference(UserRef), is_atom(Admin) ->
     gen_server:call(?MODULE, {set_admin, UserRef, Admin}).
 
+add_ibutton(UserRef, IButton) when is_reference(UserRef), is_list(IButton) ->
+    gen_server:call(?MODULE, {add_ibutton, UserRef, IButton}).
+
+del_ibutton(UserRef, IButton) when is_reference(UserRef), is_list(IButton) ->
+    gen_server:call(?MODULE, {del_ibutton, UserRef, IButton}).
+
 %%%%%%%%%%%%%%%%%%%%
 % Internal Helpers %
 %%%%%%%%%%%%%%%%%%%%
 valid_admin_setting(true) -> ok;
 valid_admin_setting(false) -> ok;
 valid_admin_setting(_) -> {error, invalid_arg}.
+
+valid_ibutton_character(Char) when Char =< $F, Char >= $A ->
+    true;
+valid_ibutton_character(Char) when Char =< $9, Char >= $0 ->
+    true;
+valid_ibutton_character(_) ->
+    false.
+
+valid_ibutton(IButton) when is_list(IButton), length(IButton) =:= 16 ->
+    case lists:any(fun valid_ibutton_character/1, IButton) of
+        true ->
+            ok;
+        false ->
+            {error, bad_ibutton}
+    end;
+valid_ibutton(_) ->
+    {error, bad_ibutton}.
 
 ldap_attribute_val("ibutton", Val) ->
 	Val;
@@ -244,13 +303,17 @@ ldap_attribute_val("drinkBalance", Val) ->
 ldap_attribute_val(_Attr, Val) ->
 	hd(Val).
 
+val_to_ldap_attr(credits, Val) ->
+    integer_to_list(Val);
 val_to_ldap_attr(admin, Val) ->
     case Val of
         true ->
             "1";
         false ->
             "0"
-    end.
+    end;
+val_to_ldap_attr(ibutton, Val) ->
+    Val.
 
 ldap_attribute(Attr, {eldap_entry, _Dn, Attrs}) ->
 	ldap_attribute(Attr, Attrs);
@@ -344,6 +407,50 @@ user_set_admin(UserInfo, Admin, State) when is_tuple(UserInfo) ->
                     end;
                 {error, Reason} ->
                     {error, Reason}
+            end;
+        {error, Reason} ->
+            {error, Reason}
+    end.
+
+user_add_ibutton(UserInfo, IButton, State) when is_tuple(UserInfo) ->
+    case valid_ibutton(IButton) of
+        ok ->
+            case get_user(UserInfo#user.username, State) of
+                {ok, User} ->
+                    NewUserInfo = User#user{ibuttons=User#user.ibuttons ++ [IButton]},
+                    case catch ldap_add_ibutton(NewUserInfo#user.username, IButton) of
+                        ok ->
+                            ets:insert(State#uastate.usertable, NewUserInfo),
+                            {ok, NewUserInfo};
+                        {error, Reason} ->
+                            {error, Reason};
+                        Reason ->
+                            {error, Reason}
+                    end;
+                {error, Reason} ->
+                    {error, Reason}
+            end;
+        {error, Reason} ->
+            {error, Reason}
+    end.
+
+user_del_ibutton(UserInfo, IButton, State) when is_tuple(UserInfo) ->
+    case get_user(UserInfo#user.username, State) of
+        {ok, User} ->
+            case lists:member(IButton, User#user.ibuttons) of
+                true ->
+                    NewUserInfo = User#user{ibuttons=User#user.ibuttons -- [IButton]},
+                    case catch ldap_del_ibutton(NewUserInfo#user.username, IButton) of
+                        ok ->
+                            ets:insert(State#uastate.usertable, NewUserInfo),
+                            {ok, NewUserInfo};
+                        {error, Reason} ->
+                            {error, Reason};
+                        Reason ->
+                            {error, Reason}
+                    end;
+                false ->
+                    {error, no_ibutton_for_user}
             end;
         {error, Reason} ->
             {error, Reason}
@@ -475,9 +582,19 @@ check_pass(User, Pass) ->
 ldap_set_credits(UserInfo) ->
     eldap:modify(eldap_user, 
         "uid=" ++ UserInfo#user.username ++ ",ou=users,dc=csh,dc=rit,dc=edu",
-        [eldap:mod_replace("drinkBalance", [integer_to_list(UserInfo#user.credits)])]).
+        [eldap:mod_replace("drinkBalance", [val_to_ldap_attr(credits, UserInfo#user.credits)])]).
 
 ldap_set_admin(UserInfo) ->
     eldap:modify(eldap_user,
         "uid=" ++ UserInfo#user.username ++ ",ou=users,dc=csh,dc=rit,dc=edu",
         [eldap:mod_replace("drinkAdmin", [val_to_ldap_attr(admin, UserInfo#user.admin)])]).
+
+ldap_add_ibutton(Username, IButton) ->
+    eldap:modify(eldap_user,
+        "uid=" ++ Username ++ ",ou=users,dc=csh,dc=rit,dc=edu",
+        [eldap:mod_add("ibutton", [val_to_ldap_attr(ibutton, IButton)])]).
+
+ldap_del_ibutton(Username, IButton) ->
+    eldap:modify(eldap_user,
+        "uid=" ++ Username ++ ",ou=users,dc=csh,dc=rit,dc=edu",
+        [eldap:mod_delete("ibutton", [val_to_ldap_attr(ibutton, IButton)])]).

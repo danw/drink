@@ -124,6 +124,12 @@ function get_user_info() {
     return false;
 }
 
+function ibutton_str(ibuttons) {
+    return $.map(ibuttons, function(ibutton) {
+        return ['<li>', ibutton, ' <a href="#" onclick="removeiButton(\'', ibutton, '\'); return false;">X</a></li>'].join('');
+    }).join('');
+}
+
 function got_user_info(userinfo) {
     current_edit_user = userinfo;
     html = ['<table><tr><th>Username:</th><td>', userinfo.username, '</td></tr><tr><th>Credits:</th><td>',
@@ -132,10 +138,25 @@ function got_user_info(userinfo) {
             '<option value="fix_amount">Fix Amount</option>',
             '<option value="other">Other</option>',
             '</select><input type="text" id="user_admin_mod_credits"><input type="submit" value="Mod &rarr;"></form>',
-            '</td></tr><tr><th>iButtons: </th><td>',
-            userinfo.ibuttons.join(), '</td></tr><tr><th>Admin:</th><td>',
+            '</td></tr><tr><th>iButtons: </th><td><ul>',
+            ibutton_str(userinfo.ibuttons), '</ul><a href="#" onclick="addiButton();return false;">Add</a></td></tr><tr><th>Admin:</th><td>',
             userinfo.admin, ' <a href="#" onclick="toggle_admin(); return false;">Toggle</a></td></tr></table>'];
     $('#user_admin_mod_form').empty().append(html.join(''));
+}
+
+function addiButton() {
+    if(current_edit_user == false)
+        return;
+    ibutton = prompt("Enter iButton:");
+    if(ibutton == '' || ibutton == null)
+        return;
+    mod_user(current_edit_user.username, "addibutton", ibutton, '');
+}
+
+function removeiButton(ibutton) {
+    if(current_edit_user == false)
+        return;
+    mod_user(current_edit_user.username, "delibutton", ibutton, '');
 }
 
 function modcredits_reason_change() {

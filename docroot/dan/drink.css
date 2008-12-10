@@ -51,4 +51,11 @@ table {
 #user_admin_mod_credits {
     width: 100px;
 }
+
+#user_admin_mod_form ul {
+    margin: 0;
+}
+
+#user_admin_mod_form li {
+    font-family: monospace;
 }

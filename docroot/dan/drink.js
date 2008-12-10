@@ -99,7 +99,37 @@ function got_current_user() {
 }
 
 function drop(machine, slot) {
-    
+    delay = prompt("Delay? Enter for immediate");
+    if(delay == '')
+        delay = 0;
+    else
+        delay = parseInt(delay);
+    if(delay == NaN) {
+        alert("Invalid Delay");
+        return;
+    }
+    setTimeout(function() { dropImpl(machine, slot); }, delay * 1000);
+}
+
+function dropImpl(machine, slot) {
+    $.ajax({
+        data: {machine: machine, slot: slot, delay: 0},
+        dataType: 'json',
+        type: 'POST',
+        url: '/drink/drop',
+        error: function() {
+            alert('Failure dropping :(');
+        },
+        success: function(data, status) {
+            if(data.status == 'error') {
+                alert('Failure dropping :( Reason: ' + data.reason);
+            } else {
+                alert('Dropping... RUN!');
+                refreshMachines();
+                refresh_current_user();
+            }
+        }
+    });
 }
 
 function get_user_info() {
@@ -243,7 +273,7 @@ function machine_html(name, machine) {
                 machine.slots[slotnum].name, '</td><td class="slotprice">',
                 machine.slots[slotnum].price, '</td><td class="slotavail">',
                 pretty_available(machine.slots[slotnum].available), '</td><td class="slotaction">',
-                '<a href="#" onclick="drop(\'', name, '\', ', slotnum, '); return false;" class="logged_in">Drop</a> ',
+                machine.slots[slotnum].available ? ['<a href="#" onclick="drop(\'', name, '\', ', slotnum, '); return false;" class="logged_in">Drop</a> '].join('') : '',
                 '<a href="#" onclick="return false" class="admin">Edit</a>',
                 '</td></tr>'].join('');
     }
@@ -273,7 +303,20 @@ function refreshMachines() {
 }
 
 function logout() {
-    current_user = false;
-    got_current_user();
-    $('#login_username').focus();
+    $.ajax({
+        dataType: 'json',
+        url: '/drink/logout',
+        error: function() {
+            alert('Error logging out');
+        },
+        success: function(data, status) {
+            if(data.status == 'error') {
+                alert('Error logging out');
+            } else {
+                current_user = false;
+                got_current_user();
+                $('#login_username').focus();
+            }
+        }
+    });
 }

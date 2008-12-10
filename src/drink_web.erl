@@ -49,6 +49,31 @@ out(A) ->
                         _ ->
                             error(invalid_args)
                     end;
+                "drop" ->
+                    case {Session#ses.user, yaws_api:postvar(A, "machine"), yaws_api:postvar(A, "slot")} of
+                        {nil, _, _} ->
+                            error(permission_denied);
+                        {User, {ok, Machine}, {ok, Slot}} ->
+                            case string:to_integer(Slot) of
+                                {error, _Reason} ->
+                                    error(invalid_args);
+                                {SlotNum, _} ->
+                                    case user_auth:drop(User, list_to_atom(Machine), SlotNum) of
+                                        ok ->
+                                            ok(true);
+                                        {error, permission_denied} ->
+                                            error(permission_denied);
+                                        {error, slot_empty} ->
+                                            error(slot_empty);
+                                        {error, Reason} ->
+                                            error(Reason);
+                                        _Else ->
+                                            error(unknown)
+                                    end
+                            end;
+                        _ ->
+                            error(invalid_args)
+                    end;
                 "machines" ->
                     error(wrong_method);
                 "logout" ->
@@ -88,6 +113,8 @@ out(A) ->
                 "logout" ->
                     yaws_api:replace_cookie_session(Cookie, #ses{}),
                     ok(true);
+                "drop" ->
+                    error(wrong_method);
                 "login" ->
                     error(wrong_method);
                 "moduser" ->

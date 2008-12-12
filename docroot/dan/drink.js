@@ -25,6 +25,10 @@ $(document).ready(function() {
     $('#login_form').submit(login);
     $('#user_admin_get_form').submit(get_user_info);
     
+    bigdrink_temps = { label: "Big Drink", data: [[0, 1], [1, 2], [2, 2], [3, 3], [4, 5], [6, 2]] };
+    littledrink_temps = { label: "Little Drink", data: [[0, 2], [1, 3], [2, 2], [3, 4], [4, 3], [6, 4]] };
+    $.plot($('#temperature_plot'), [bigdrink_temps, littledrink_temps], {legend:{}});
+    
     refresh_current_user();
     refreshMachines();
 });

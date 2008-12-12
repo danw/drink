@@ -125,8 +125,7 @@ out(A) ->
         _Else ->
             error(wrong_method)
     end,
-    % change to application/json when done testing
-    [SessionCookie, {content, "text/plain", json:encode(RetJson)}, break].
+    [SessionCookie, {content, "application/json", json:encode(RetJson)}, break].
 
 ok(Data) ->
     {struct, [{status, "ok"}, {data, Data}]}.

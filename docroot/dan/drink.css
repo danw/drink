@@ -59,3 +59,7 @@ table {
 #user_admin_mod_form li {
     font-family: monospace;
 }
+
+#temperature_plot td, #temperature_plot table {
+    border-width: 0;
+}

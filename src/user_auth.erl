@@ -244,7 +244,7 @@ delete_ref(UserRef) when is_reference(UserRef) ->
 	gen_server:cast(?MODULE, {delete_ref, UserRef}).
 
 drop(UserRef, Machine, Slot) when is_reference(UserRef), is_atom(Machine), is_integer(Slot) ->
-	gen_server:call(?MODULE, {drop, UserRef, Machine, Slot}).
+	gen_server:call(?MODULE, {drop, UserRef, Machine, Slot}, infinity).
 
 add_credits(UserRef, Credits, Reason) when is_reference(UserRef), is_integer(Credits) ->
     gen_server:call(?MODULE, {add_credits, UserRef, Credits, Reason}).

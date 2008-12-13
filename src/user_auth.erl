@@ -330,7 +330,6 @@ ldap_attribute(Attr, [{Name, ValueArr}|T]) ->
 deduct(UserInfo, Cost, MoneyReason, State) when is_tuple(UserInfo) ->
 	case get_user(UserInfo#user.username, State) of
 		{ok, User} ->
-			io:format("Deducting ~p from ~p(~p)~n", [Cost, User#user.username, User#user.credits]),
 			case User#user.credits of
 				B when B >= Cost ->
 					NewUserInfo = User#user{credits = B - Cost},

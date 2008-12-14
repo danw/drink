@@ -8,9 +8,6 @@
           user_info/1, delete_ref/1, drop/3, add_credits/3, 
           dec_credits/3, mod_credits/3, set_admin/2, add_ibutton/2, del_ibutton/2]).
 
-% for testing:
--export ([ldap_set_credits/1]).
-
 -include ("user.hrl").
 -include ("drink_mnesia.hrl").
 
@@ -194,13 +191,9 @@ handle_cast ({delete_ref, UserRef}, State) when is_reference(UserRef) ->
 handle_cast (_Request, State) ->
 	{noreply, State}.
 
-handle_info (Info, State) ->
-	case Info of
-		{'EXIT', _From, _Reason} ->
-			ok;
-		_Wtf ->
-			ok
-	end,
+handle_info ({'EXIT', _From, _Reason}, State) ->
+    {noreply, State};
+handle_info (_Info, State) ->
 	{noreply, State}.
 
 terminate (_Reason, _State) ->

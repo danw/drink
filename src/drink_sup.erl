@@ -70,7 +70,14 @@ init ([]) ->
             permanent,
             100,
             worker,
-            [mysql]}
+            [mysql]},
+            
+           {drink_web_events,
+            {drink_web_events, start_link, []},
+            permanent,
+            100,
+            worker,
+            [drink_web_events]}
 		   
             %          {web_server,
             % {drink_web, start_link, []},

@@ -10,6 +10,13 @@
     display: none;
 }
 
+#balance {
+    float: right;
+    width: 200px;
+    text-align: right;
+    padding-right: 0.5em;
+}
+
 td, th {
     padding: 2px 6px;
     border-style: solid;
@@ -62,4 +69,45 @@ table {
 
 #temperature_plot td, #temperature_plot table {
     border-width: 0;
+}
+
+.ui-tabs-hide {
+    position: absolute;
+    left: -10000px;
+}
+
+.ui-tabs-nav {
+    border-width: 0 0 0 1px;
+    border-style: solid;
+    border-color: black;
+/*    border: 1px solid black;*/
+    height: 28px;
+    padding: 0;
+}
+
+.ui-tabs-nav li {
+    float: left;
+    width: 140px;
+    text-align: center;
+    padding: 0;
+    margin: 0;
+    list-style: none;
+    border-width: 1px 1px 1px 0;
+    border-style: solid;
+    border-color: black;
+    line-height: 18px;
+    font-size: 18px;
+    font-family: sans-serif;
+}
+
+.ui-tabs-nav li a {
+    text-decoration: none;
+    display: block;
+    margin: 0;
+    padding: 4px;
+    height: 18px;
+}
+
+.ui-tabs-nav .ui-tabs-selected a {
+    background-color: #aaaaff;
 }

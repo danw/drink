@@ -1,5 +1,22 @@
 var current_user = false;
 var current_edit_user = false;
+var temp_plot = null;
+var bigdrink_temps = { label: "Big Drink", data: [] };
+var littledrink_temps = { label: "Little Drink", data: [] };
+var little = 5;
+var big = 5;
+
+(function () {
+    length = 400;
+    x = (new Date()).getTime() - length * 1000;
+    for(i = 0; i < length; i++) {
+        little += Math.random() * 2 - 1;
+        big += Math.random() * 2 - 1;
+        bigdrink_temps.data.push([x, big]);
+        littledrink_temps.data.push([x, little]);
+        x += 1000;
+    }
+})();
 
 $(document).ready(function() {
     $('#login_username').css("color", "gray").focus(function() {
@@ -25,13 +42,53 @@ $(document).ready(function() {
     $('#login_form').submit(login);
     $('#user_admin_get_form').submit(get_user_info);
     
-    bigdrink_temps = { label: "Big Drink", data: [[0, 1], [1, 2], [2, 2], [3, 3], [4, 5], [6, 2]] };
-    littledrink_temps = { label: "Little Drink", data: [[0, 2], [1, 3], [2, 2], [3, 4], [4, 3], [6, 4]] };
-    $.plot($('#temperature_plot'), [bigdrink_temps, littledrink_temps], {legend:{}});
+    temp_plot = $.plot($('#temperature_plot'), [bigdrink_temps, littledrink_temps], {xaxis: {mode: "time"}});
+    setInterval(function () {
+        x = (new Date()).getTime();
+        little += Math.random() * 2 - 1;
+        big += Math.random() * 2 - 1;
+        bigdrink_temps.data.push([x, big]);
+        littledrink_temps.data.push([x, little]);
+        bigdrink_temps.data.shift();
+        littledrink_temps.data.shift();
+        temp_plot.setData([bigdrink_temps, littledrink_temps]);
+        temp_plot.setupGrid();
+        temp_plot.draw();
+    }, 1000);
+    
+    $('#tabs > ul').tabs();
     
     refresh_current_user();
     refreshMachines();
+    
+    startEventListening();
 });
+
+function startEventListening() {
+    var xhr = new XMLHttpRequest();
+    if(typeof xhr.multipart != "undefined") {
+        $("body").append("xhr multipart");
+        xhr.multipart = true;
+        xhr.open('GET', '/drink/events', true);
+        xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+        xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
+        xhr.onload = function(event) {
+            alert(event.target.responseText);
+        };
+        xhr.send(null);
+    }
+    // $.ajax({
+    //     dataType: 'json',
+    //     url: '/drink/events',
+    //     multipart: true,
+    //     error: function() {
+    //         alert("Error listening for events");
+    //     },
+    //     success: function(data, status) {
+    //         alert("Got data: " + data);
+    //     }
+    // });
+}
 
 function refresh_current_user() {
     $.ajax({
@@ -82,23 +139,24 @@ function login() {
 }
 
 function got_current_user() {
-// if(logged out is visible)
-//    $('#login_password').val('');
-    $('.logging_in').hide();
+    $.cssRule('.logging_in', 'display:none');
     if(current_user != false) {
-        $('.logged_out').hide();
+        $('#login_password').val('');
+        $.cssRule('.logged_out', 'display:none');
         $('#currentuser').html(current_user.username);
         $('#currentuser_balance').html(current_user.credits);
         if(current_user.admin) {
-            $('.admin').show();
+            $.cssRule('.admin', 'display:block');
+            $.cssRule('span.admin', 'display:inline');
+            $.cssRule('li.admin', 'display:list-item');
         } else {
-            $('.admin').hide();
+            $.cssRule('.admin', 'display:none');
         }
-        $('.logged_in').show();
+        $.cssRule('.logged_in', 'display:block');
     } else {
-        $('.logged_in').hide();
-        $('.admin').hide();
-        $('.logged_out').show();
+        $.cssRule('.logged_in', 'display:none');
+        $.cssRule('.admin', 'display:none');
+        $.cssRule('.logged_out', 'display:block')
     }
 }
 

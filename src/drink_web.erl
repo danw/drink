@@ -1,6 +1,7 @@
 -module (drink_web).
 
 -export ([out/1]).
+-export ([encode_json_chunk/1]).
 
 -include ("yaws_api.hrl").
 -include ("user.hrl").
@@ -10,7 +11,7 @@
 
 out(A) ->
     {ok, Cookie, Session, SessionCookie} = session_start(A),
-    RetJson = case (A#arg.req)#http_request.method of
+    RetContent = case (A#arg.req)#http_request.method of
         'POST' ->
             case A#arg.appmoddata of
                 "login" ->
@@ -113,6 +114,9 @@ out(A) ->
                 "logout" ->
                     yaws_api:replace_cookie_session(Cookie, #ses{}),
                     ok(true);
+                "events" ->
+                    drink_web_events:register([temperature, drop]),
+                    [{streamcontent, "multipart/x-mixed-replace;boundary=\"eventboundaryx\"", "--eventboundaryx\nContent-type: application/json\n\n" ++ json:encode(true) ++ "\n\n"}];
                 "drop" ->
                     error(wrong_method);
                 "login" ->
@@ -125,15 +129,15 @@ out(A) ->
         _Else ->
             error(wrong_method)
     end,
-    [SessionCookie, {content, "application/json", json:encode(RetJson)}, break].
+    [SessionCookie] ++ RetContent.
 
 ok(Data) ->
-    {struct, [{status, "ok"}, {data, Data}]}.
+    [{content, "application/json", json:encode({struct, [{status, "ok"}, {data, Data}]})}].
 
 error(Reason) when is_atom(Reason) ->
     error(atom_to_list(Reason));
 error(Reason) ->
-    {struct, [{status, "error"}, {reason, Reason}]}.
+    [{content, "application/json", json:encode({struct, [{status, "error"}, {reason, Reason}]})}].
 
 machines([]) ->
     [];
@@ -244,3 +248,6 @@ session_start(A) ->
             Cookie = yaws_api:new_cookie_session(Session),
             {ok, Cookie, Session, yaws_api:setcookie("ssid", Cookie, "/")}
     end.
+
+encode_json_chunk(Json) ->
+    "--eventboundaryx\nContent-type: application/json\n\n" ++ json:encode(Json) ++ "\n\n".

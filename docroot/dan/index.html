@@ -10,6 +10,7 @@
 	<!--[if IE]><script language="javascript" type="text/javascript" src="excanvas.pack.js"></script><![endif]-->
 	<script src="jquery-ui-personalized-1.6rc2.js" type="text/javascript" charset="utf-8"></script>
 	<script src="jquery.cssRule.js" type="text/javascript" charset="utf-8"></script>
+	<script src="jquery.strftime.js" type="text/javascript" charset="utf-8"></script>
 	<script src="drink.js" type="text/javascript" charset="utf-8"></script>
 	<link rel="stylesheet" href="drink.css" type="text/css" media="screen" title="" charset="utf-8">
 </head>
@@ -40,7 +41,7 @@
 			</ul>
 		</div>
 		
-		<div id="user_admin" class="admin">
+		<div id="user_admin">
 			<form id="user_admin_get_form">
 			<input type="text" id="user_admin_username" value="username"><input type="submit" value="Get Info &rarr;">
 			</form>
@@ -53,7 +54,15 @@
 		</div>
 		
 		<div id="logs">
-			Logs to come...
+			<p><a href="#" class="logprev">&larr;</a> Offset: <span class="logoffset"></span> <a href="#" class="lognext">&rarr;</a></p>
+			<table>
+				<thead>
+					<tr><th>Type</th><th>Time</th><th>User</th><th>Info</th><th>Reason/Status</th></tr>
+				</thead>
+				<tbody id="logcontainer">
+				</tbody>
+			</table>
+			<p><a href="#" class="logprev">&larr;</a> Offset: <span class="logoffset"></span> <a href="#" class="lognext">&rarr;</a></p>
 		</div>
 	</div>
 </body>

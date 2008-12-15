@@ -38,9 +38,10 @@ td.slotnum, td.slotprice, td.slotavail {
 
 table {
     border-spacing: 0px;
-    border-width: 0 0 0 1px;
-    border-style: solid;
-    border-color: gray;
+}
+
+tbody tr td:first-child {
+    border-left-width: 1px;
 }
 
 #user_admin_mod_form table {
@@ -110,4 +111,12 @@ table {
 
 .ui-tabs-nav .ui-tabs-selected a {
     background-color: #aaaaff;
+}
+
+#logcontainer .type, #logcontainer .time, #logcontainer .username {
+    text-align: center;
+}
+
+#logcontainer .error {
+    background-color: #fee;
 }

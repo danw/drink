@@ -10,7 +10,7 @@ start(_Type, StartArgs) ->
 		{error, _Reason} ->
 			drink_mnesia:initialize();
 		ok ->
-			drink_mnesia:upgrade()
+			ok
 	end,
 	yaws_conf(),
 	drink_sup:start_link(StartArgs).

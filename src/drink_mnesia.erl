@@ -1,6 +1,7 @@
 -module (drink_mnesia).
--export ([initialize/0, upgrade/0]).
+-export ([initialize/0]).
 -export ([log_drop/1, log_money/1, log_temperature/1]).
+-export ([get_logs/2]).
 
 -include ("drink_mnesia.hrl").
 
@@ -45,7 +46,12 @@ initialize() ->
 mysql_init() ->
     mysql:prepare(log_temperature, <<"INSERT INTO temperature_log VALUES (?, ?, ?)">>),
     mysql:prepare(log_money, <<"INSERT INTO money_log VALUES (?, ?, ?, ?, ?, ?)">>),
-    mysql:prepare(log_drop, <<"INSERT INTO drop_log VALUES (?, ?, ?, ?, ?)">>).
+    mysql:prepare(log_drop, <<"INSERT INTO drop_log VALUES (?, ?, ?, ?, ?)">>),
+    mysql:prepare(get_logs, <<"SELECT * FROM (
+    SELECT \"money\" as type, m.time as time, m.username, m.admin, m.direction, m.reason, m.amount FROM money_log as m
+    union
+    SELECT \"drop\" as type, d.time as time, d.username, d.machine, d.slot, d.status, 0 FROM drop_log as d) AS log
+    ORDER BY log.time DESC LIMIT ?, ?">>).
 
 log_drop(Drop) ->
     Status = io_lib:format("~w", [Drop#drop_log.status]),
@@ -116,17 +122,31 @@ log_temperature(Temperature) ->
             ok
     end.
 
-upgrade() ->
-	%{atomic, ok} = mnesia:transform_table(machine, fun upgrade_machines/1, record_info(fields, machine), machine),
-	%{atomic, ok} = mnesia:transform_table(slot, fun upgrade_slots/1, record_info(fields, slot), slot),
-	%{atomic, ok} = mnesia:transform_table(temperature, fun upgrade_temperatures/1, record_info(fields, slot), slot).
-	ok.
+get_logs(Index, Count) when is_integer(Index), is_integer(Count) ->
+    case mysql:execute(drink_log, get_logs, [Index, Count]) of
+        {error, {no_such_statement, get_logs}} ->
+            mysql_init(),
+            get_logs(Index, Count);
+        {error, _MySqlRes} ->
+            {error, mysql};
+        {data, MySqlRes} ->
+            {ok, lists:map(fun format_log/1, mysql:get_result_rows(MySqlRes))}
+    end.
 
-% upgrade_machines(X) ->
-% 	X.
-% 
-% upgrade_slots(X) ->
-% 	X.
-% 
-% upgrade_temperatures(X) ->
-% 	X.
+format_log([<<"money">>, {datetime, Time}, User, Admin, Direction, Reason, Amount]) ->
+    #money_log{
+        time = Time,
+        username = binary_to_list(User),
+        admin = binary_to_list(Admin),
+        direction = list_to_atom(binary_to_list(Direction)),
+        reason = list_to_atom(binary_to_list(Reason)),
+        amount = Amount
+    };
+format_log([<<"drop">>, {datetime, Time}, User, Machine, Slot, Status, 0]) ->
+    #drop_log{
+        time = Time,
+        username = binary_to_list(User),
+        machine = list_to_atom(binary_to_list(Machine)),
+        slot = binary_to_list(Slot),
+        status = binary_to_list(Status)
+    }.

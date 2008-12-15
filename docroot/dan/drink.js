@@ -1,10 +1,13 @@
 var current_user = false;
 var current_edit_user = false;
 var temp_plot = null;
+var tabs = null;
 var bigdrink_temps = { label: "Big Drink", data: [] };
 var littledrink_temps = { label: "Little Drink", data: [] };
 var little = 5;
 var big = 5;
+var logsLimit = 20;
+var logsOffset = 0;
 
 (function () {
     length = 400;
@@ -56,12 +59,13 @@ $(document).ready(function() {
         temp_plot.draw();
     }, 1000);
     
-    $('#tabs > ul').tabs();
+    tabs = $('#tabs > ul').tabs();
     
     refresh_current_user();
     refreshMachines();
     
     startEventListening();
+    initLogs();
 });
 
 function startEventListening() {
@@ -151,11 +155,15 @@ function got_current_user() {
             $.cssRule('li.admin', 'display:list-item');
         } else {
             $.cssRule('.admin', 'display:none');
+            if($('.ui-tabs-selected').hasClass('admin'))
+                tabs.tabs('select', 'drink_machines')
         }
         $.cssRule('.logged_in', 'display:block');
     } else {
         $.cssRule('.logged_in', 'display:none');
         $.cssRule('.admin', 'display:none');
+        if($('.ui-tabs-selected').hasClass('admin'))
+            tabs.tabs('select', 'drink_machines')
         $.cssRule('.logged_out', 'display:block')
     }
 }
@@ -329,7 +337,7 @@ function pretty_available(count) {
 }
 
 function machine_html(name, machine) {
-    res = ['<h3>', name, '</h3>', '<table><tr><th>Slot Num</th><th>Name</th><th>Price</th><th>Available</th><th>Actions</th></tr>'];
+    res = ['<h3>', name, '</h3>', '<table><thead><tr><th>Slot Num</th><th>Name</th><th>Price</th><th>Available</th><th>Actions</th></tr></thead><tbody>'];
     for(slotnum in machine.slots) {
         res[res.length] = ['<tr><td class="slotnum">', slotnum, '</td><td class="slotname">',
                 machine.slots[slotnum].name, '</td><td class="slotprice">',
@@ -339,7 +347,7 @@ function machine_html(name, machine) {
                 '<a href="#" onclick="return false" class="admin">Edit</a>',
                 '</td></tr>'].join('');
     }
-    res[res.length] = '</table>';
+    res[res.length] = '</tbody></table>';
     return res.join('');
 }
 
@@ -381,4 +389,89 @@ function logout() {
             }
         }
     });
+}
+
+function initLogs() {
+    $('.logprev').click(logsPrev).hide();
+    $('.lognext').click(logsNext);
+    getLogs(logsOffset, logsLimit);
+}
+
+function logsPrev() {
+    offset = logsOffset - logsLimit;
+    getLogs((offset > 0) ? offset : 0, logsLimit);
+    return false;
+}
+
+function logsNext() {
+    getLogs(logsOffset + logsLimit, logsLimit);
+    return false;
+}
+
+function getLogs(offset, count) {
+    $.ajax({
+        dataType: 'json',
+        url: '/drink/logs',
+        data: {offset: offset, limit: count},
+        error: function() {
+            alert('Error getting logs');
+        },
+        success: function(data, status) {
+            if(data.status == 'error') {
+                alert('Error getting logs: ' + data.reason);
+            } else {
+                gotLogs(data.data);
+            }
+        }
+    });
+}
+
+function gotLogs(data) {
+    if(data.start > 0)
+        $('.logprev').show();
+    else
+        $('.logprev').hide();
+    logsOffset = data.start;
+    $('.logoffset').html('' + logsOffset);
+    if(logsLimit == data.length)
+        $('.lognext').show();
+    else
+        $('.lognext').hide();
+
+    logElem = $('#logcontainer').empty();
+    lines = [];
+    today = new Date().toDateString();
+    yesterday = new Date();
+    yesterday.setTime(yesterday.getTime() - 86400000);
+    yesterday = yesterday.toDateString();
+    for(i = 0; i < data.lines.length; i++) {
+        l = data.lines[i];
+        time = new Date();
+        time.setTime(l.time * 1000);
+        timeStr = time.toDateString();
+        if(time.toDateString() == today) {
+            d = $.strftime("Today %H:%M:%S", time, false);
+        } else if(timeStr == yesterday) {
+            d = $.strftime("Yesterday %H:%M:%S", time, false);
+        } else {
+            d = $.strftime("%m/%d/%Y %H:%M:%S", time, false);
+        }
+        if(l.type == 'drop') {
+            error = l.status.search(/error/i) != -1;
+            lines[lines.length] = [
+                '<tr', (error) ? ' class="error"' : '', '><td class="type">Drop</td><td class="time">', d,
+                '</td><td class="username">', l.username, 
+                '</td><td class="info">Dropped ', l.slot, ' from ', l.machine, '</td><td class="status">', l.status, '</td></tr>'
+            ].join('');
+        } else {
+            error = l.reason.search(/error/i) != -1;
+            lines[lines.length] = [
+                '<tr', (error) ? ' class="error"' : '', '><td class="type">Money</td><td class="time">', d,
+                '</td><td class="username">', l.username,
+                '</td><td class="info">Admin: ', l.admin, ' Amount: ', l.amount, ' Direction: ', l.direction,
+                '</td><td class="reason">', l.reason, '</td></tr>'
+            ].join('');
+        }
+    }
+    logElem.append(lines.join(''));
 }

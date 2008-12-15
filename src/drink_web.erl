@@ -114,6 +114,27 @@ out(A) ->
                 "logout" ->
                     yaws_api:replace_cookie_session(Cookie, #ses{}),
                     ok(true);
+                "logs" ->
+                    case {yaws_api:queryvar(A, "offset"), yaws_api:queryvar(A, "limit")} of
+                        {{ok, OffsetStr}, {ok, LimitStr}} ->
+                            case {string:to_integer(OffsetStr), string:to_integer(LimitStr)} of
+                                {{error, _Reason}, _} ->
+                                    error(invalid_args);
+                                {_, {error, _Reason}} ->
+                                    error(invalid_args);
+                                {{Offset, _Rest}, {Limit, _Rest}} when Offset >= 0, Limit =< 100 ->
+                                    case drink_mnesia:get_logs(Offset, Limit) of
+                                        {ok, Data} ->
+                                            ok(format_logs(Offset, Limit, Data));
+                                        {error, Reason} ->
+                                            error(Reason)
+                                    end;
+                                _ ->
+                                    error(invalid_args)
+                            end;
+                        _ ->
+                            error(invalid_args)
+                    end;
                 "events" ->
                     drink_web_events:register([temperature, drop]),
                     [{streamcontent, "multipart/x-mixed-replace;boundary=\"eventboundaryx\"", "--eventboundaryx\nContent-type: application/json\n\n" ++ json:encode(true) ++ "\n\n"}];
@@ -251,3 +272,28 @@ session_start(A) ->
 
 encode_json_chunk(Json) ->
     "--eventboundaryx\nContent-type: application/json\n\n" ++ json:encode(Json) ++ "\n\n".
+
+format_logs(Start, Length, Data) ->
+    {struct, [{start, Start}, {length, Length}, {lines, {array, lists:map(fun format_log/1, Data)}}]}.
+
+format_log(Line = #money_log{}) ->
+    {struct, [
+        {type, "money"},
+        {time, calendar:datetime_to_gregorian_seconds(Line#money_log.time) - 
+                calendar:datetime_to_gregorian_seconds({{1970, 1, 1},{0, 0, 0}})},
+        {username, Line#money_log.username},
+        {admin, Line#money_log.admin},
+        {amount, Line#money_log.amount},
+        {direction, atom_to_list(Line#money_log.direction)},
+        {reason, atom_to_list(Line#money_log.reason)}
+    ]};
+format_log(Line = #drop_log{}) ->
+    {struct, [
+        {type, "drop"}, 
+        {machine, atom_to_list(Line#drop_log.machine)},
+        {slot, Line#drop_log.slot},
+        {username, Line#drop_log.username},
+        {time, calendar:datetime_to_gregorian_seconds(Line#drop_log.time) - 
+                calendar:datetime_to_gregorian_seconds({{1970, 1, 1},{0, 0, 0}})},
+        {status, Line#drop_log.status}
+    ]}.

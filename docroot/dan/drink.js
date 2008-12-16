@@ -59,7 +59,8 @@ $(document).ready(function() {
         temp_plot.draw();
     }, 1000);
     
-    tabs = $('#tabs > ul').tabs();
+    tabs = $('#tabs > ul').tabs({cookie: {expires: 7, path: '/', secure: true}, cookieName: 'main'});
+    tabs.tabs('disable', 1);
     
     refresh_current_user();
     refreshMachines();
@@ -153,18 +154,21 @@ function got_current_user() {
             $.cssRule('.admin', 'display:block');
             $.cssRule('span.admin', 'display:inline');
             $.cssRule('li.admin', 'display:list-item');
+            tabs.tabs('enable', 1)
         } else {
             $.cssRule('.admin', 'display:none');
-            if($('.ui-tabs-selected').hasClass('admin'))
-                tabs.tabs('select', 'drink_machines')
+            if(tabs.data('selected.tabs') == 1)
+                tabs.tabs('select', 0);
+            tabs.tabs('disable', 1)
         }
         $.cssRule('.logged_in', 'display:block');
     } else {
         $.cssRule('.logged_in', 'display:none');
         $.cssRule('.admin', 'display:none');
-        if($('.ui-tabs-selected').hasClass('admin'))
-            tabs.tabs('select', 'drink_machines')
-        $.cssRule('.logged_out', 'display:block')
+        if(tabs.data('selected.tabs') == 1)
+            tabs.tabs('select', 0);
+        tabs.tabs('disable', 1);
+        $.cssRule('.logged_out', 'display:block');
     }
 }
 

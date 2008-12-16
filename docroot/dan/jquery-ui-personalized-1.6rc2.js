@@ -3143,7 +3143,7 @@ $.widget("ui.tabs", {
 					});
 				}
 				else if (o.cookie) {
-					var index = parseInt($.cookie('ui-tabs-' + $.data(self.element[0])), 10);
+					var index = parseInt($.cookie('ui-tabs-' + o.cookieName), 10);
 					if (index && self.$tabs[index])
 						o.selected = index;
 				}
@@ -3196,7 +3196,7 @@ $.widget("ui.tabs", {
 
 		// set or update cookie after init and add/remove respectively
 		if (o.cookie)
-			$.cookie('ui-tabs-' + $.data(self.element[0]), o.selected, o.cookie);
+			$.cookie('ui-tabs-' + o.cookieName, o.selected, o.cookie);
 		
 		// disable tabs
 		for (var i = 0, li; li = this.$lis[i]; i++)
@@ -3300,7 +3300,7 @@ $.widget("ui.tabs", {
 			}
 
 			if (o.cookie)
-				$.cookie('ui-tabs-' + $.data(self.element[0]), self.options.selected, o.cookie);
+				$.cookie('ui-tabs-' + o.cookieName, self.options.selected, o.cookie);
 
 			// stop possibly running animations
 			self.$panels.stop();
@@ -3545,6 +3545,7 @@ $.ui.tabs.defaults = {
 	event: 'click',
 	disabled: [],
 	cookie: null, // e.g. { expires: 7, path: '/', domain: 'jquery.com', secure: true }
+	cookieName: 'cookie',
 	// TODO history: false,
 
 	// Ajax

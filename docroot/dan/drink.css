@@ -113,10 +113,20 @@ tbody tr td:first-child {
     background-color: #aaaaff;
 }
 
+.ui-tabs-nav .ui-tabs-disabled a {
+    background-color: #ddd;
+    color: #999;
+    cursor: default;
+}
+
 #logcontainer .type, #logcontainer .time, #logcontainer .username {
     text-align: center;
 }
 
 #logcontainer .error {
     background-color: #fee;
+}
+
+.logprev, .lognext {
+    text-decoration: none;
 }

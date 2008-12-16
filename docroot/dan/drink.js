@@ -1,3 +1,10 @@
+/*
+ * Drink Web Interface
+ *
+ * Copyright 2008 Dan Willemsen
+ * Licensed under the MIT (MIT-LICENSE.txt) license
+ */
+
 var current_user = false;
 var current_edit_user = false;
 var temp_plot = null;

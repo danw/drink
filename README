@@ -1,4 +1,4 @@
-The Computer Science House Drink Server, (re-)written in erlang.
+The Computer Science House Drink Server, (re-)written in Erlang.
 
 For more information about the project:
 
@@ -22,10 +22,18 @@ Legal Info:
     along with this program; if not, write to the Free Software
     Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-There are seperate modules under the source directory that may contain
+There are separate modules under the source directory that may contain
 different licenses, view the README/COPYING or similar files in the directories
 for more information:
 
-	src/pam contains a PAM library for Erlang
-	src/mysql contains a Mysql library for Erlang
-	src/eldap contains a LDAP library for Erlang
+	src/pam -
+		PAM library for Erlang
+		GPLv2 or later
+	src/mysql - 
+		Mysql library for Erlang
+	src/eldap - 
+		LDAP library for Erlang
+		GPLv2 or later
+	docroot/dan -
+		The Web interface to this server
+		MIT License

@@ -5,34 +5,67 @@
 <head>
 	<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 	<title>index</title>
+	<script src="jquery-1.2.6.js" type="text/javascript" charset="utf-8"></script>
+	<script src="jquery.flot.js" type="text/javascript" charset="utf-8"></script>
+	<script src="jquery.cookie.js" type="text/javascript" charset="utf-8"></script>
+	<!--[if IE]><script language="javascript" type="text/javascript" src="excanvas.pack.js"></script><![endif]-->
+	<script src="jquery-ui-personalized-1.6rc2.js" type="text/javascript" charset="utf-8"></script>
+	<script src="jquery.cssRule.js" type="text/javascript" charset="utf-8"></script>
+	<script src="jquery.strftime.js" type="text/javascript" charset="utf-8"></script>
+	<script src="ui.history.js" type="text/javascript" charset="utf-8"></script>
+	<script src="drink.js" type="text/javascript" charset="utf-8"></script>
+	<link rel="stylesheet" href="drink.css" type="text/css" media="screen" title="" charset="utf-8">
 </head>
 <body>
+	<div class="logging_in">
+		Logging in...
+	</div>
+	<div class="logged_out">
+		<form id="login_form">
+			<input type="text" id="login_username" value="username"><input type="password" id="login_password"> <input type="submit" value="Login &rarr;">
+		</form>
+	</div>
+	<div class="logged_in">
+		<span id="balance">Balance: <span id="currentuser_balance"></span> credits</span>
+		<p>Logged in as: <span id="currentuser"></span><span class="admin"> (admin)</span> <a href="#" onclick="logout(); return false;">Logout</a></p>
+	</div>
 	
-	<form action="/drink/login" method="post" accept-charset="utf-8" target="popup">
-		<h1 id="login">Login</h1>
-		<p><label for="username">Username:</label><input type="text" name="username" value="" id="username"></p>
-		<p><label for="password">Password:</label><input type="password" name="password" value="" id="password"></p>
+	<div id="tabs">
+		<ul>
+			<li><a href="#drink_machines"><span>Machines</span></a></li>
+			<li><a href="#user_admin"><span>User Admin</span></a></li>
+			<li><a href="#temperatures"><span>Temperatures</span></a></li>
+			<li><a href="#logs"><span>Logs</span></a></li>
+		</ul>
+		
+		<div id="drink_machines">
+			<ul id="machines">
+			</ul>
+		</div>
+		
+		<div id="user_admin">
+			<form id="user_admin_get_form">
+			<input type="text" id="user_admin_username" value="username"><input type="submit" value="Get Info &rarr;">
+			</form>
+			<div id="user_admin_mod_form">
+			</div>
+		</div>
 
-		<p><input type="submit" value="Login &rarr;"></p>
-	</form>
-	
-	<h1>Current User:</h1>
-	<iframe id="currentuser" src="/drink/currentuser" width="90%" height="30px" border="1px"></iframe><br>
-	<a href="#" onclick="document.getElementById('currentuser').src = '/drink/currentuser'; return false;">reload</a>
-	
-	<form action="/drink/userinfo" method="get" accept-charset="utf-8" target="popup">
-		<h1 id="user_info">User Info</h1>
-		<p><label for="user">User:</label><input type="text" name="user" value="" id="user"></p>
-
-		<p><input type="submit" value="Get User Info &rarr;"></p>
-	</form>
-	
-	<h1>Logout</h1>
-	<a href="/drink/logout" target="popup">Logout</a>
-	
-	<h1>Connected Machines</h1>
-	<iframe id="connectedmachines" src="/drink/machines" width="90%" height="90px" border="1px"></iframe><br>
-	<a href="#" onclick="document.getElementById('connectedmachines').src = '/drink/machines'; return false;">reload</a>
-
+		<div id="temperatures">
+			<div id="temperature_plot" style="width:600px;height:250px;"></div>
+		</div>
+		
+		<div id="logs">
+			<p><a href="#" class="logprev">&larr;</a> Offset: <span class="logoffset"></span> <a href="#" class="lognext">&rarr;</a></p>
+			<table>
+				<thead>
+					<tr><th>Type</th><th>Time</th><th>User</th><th>Info</th><th>Reason/Status</th></tr>
+				</thead>
+				<tbody id="logcontainer">
+				</tbody>
+			</table>
+			<p><a href="#" class="logprev">&larr;</a> Offset: <span class="logoffset"></span> <a href="#" class="lognext">&rarr;</a></p>
+		</div>
+	</div>
 </body>
 </html>

@@ -130,6 +130,8 @@ got_command("ADDCREDITS", [User, CreditsStr], State) ->
     end;
 got_command("ADDCREDITS", _, State) ->
     {error, 406, "Invalid parameters.", State};
+got_command("ADDUSER", _, State) ->
+    {error, 451, "Not used anymore.", State};
 got_command("CHPASS", _, State) ->
 	{error, 451, "Cannot change user/pass anymore.", State};
 got_command("CODE", _, State) ->
@@ -164,6 +166,48 @@ got_command("DROP", [_Slot, _Delay], State) ->
 	{error, 451, "Not implemented.", State};
 got_command("DROP", _, State) ->
 	{error, 406, "Invalid parameters.", State};
+got_command("EDITSLOT", [SlotNumStr, Name, CostStr, QuantityStr, _NumDropped, _Enabled], State) ->
+    case {string:to_integer(SlotNumStr), string:to_integer(CostStr), string:to_integer(QuantityStr)} of
+        {{error, _}, _, _} ->
+            {error, 406, "Invalid Slot Num.", State};
+        {_, {error, _}, _} ->
+            {error, 406, "Invalid Cost.", State};
+        {_, _, {error, _}} ->
+            {error, 406, "Invalid Quantity.", State};
+        {{SlotNum, _}, {Cost, _}, {Quantity, _}} ->
+            case drink_machine:set_slot_info(State#sunday_state.machine, State#sunday_state.userref, #slot{
+               machine = State#sunday_state.machine,
+               num = SlotNum,
+               name = Name,
+               price = Cost,
+               avail = Quantity 
+            }) of
+                {error, invalid_machine} ->
+                    {error, 0, "Machine required.", State};
+                {error, permission_denied} ->
+                    {error, 0, "Permission denied.", State};
+                {error, invalid_slot} ->
+                    {error, 0, "Invalid slot.", State};
+                ok ->
+                    {ok, "", State}
+            end;
+        _ ->
+            {error, 406, "Invalid parameters."}
+    end;
+got_command("EDITUSER", [Username, CreditsStr], State) ->
+    case string:to_integer(CreditsStr) of
+        {error, _} ->
+            {error, 406, "Invalid Credits", State};
+        {Credits, _} ->
+            {error, 451, "Not implemented.", State}
+    end;
+got_command("EDITUSER", [Username, CreditsStr, Admin], State) ->
+    case string:to_integer(CreditsStr) of
+        {error, _} ->
+            {error, 406, "Invalid Credits", State};
+        {Credits, _} ->
+            {error, 451, "Not implemented.", State}
+    end;
 got_command("GETBALANCE", [], State) ->
 	case State#sunday_state.userref of
 		nil ->
@@ -208,20 +252,19 @@ got_command("IBUTTON", [Ibutton], State) ->
 	end;
 got_command("IBUTTON", _, State) ->
 	{error, 406, "Invalid parameters.", State};
+got_command("ISVALIDUSER", _, State) ->
+    {error, 451, "Not implemented.", State};
 got_command("LOCATION", _, State) ->
 	{error, 451, "Not implemented.", State}; % If someone wants to implement this...
+got_command("LOG", _, State) ->
+    {error, 451, "Not implemented.", State};
 got_command("MACHINE", [MachineStr], State) ->
 	Machine = list_to_atom(MachineStr),
 	case drink_machines_sup:is_machine(Machine) of % TODO: convert_drink_alias_to_machineid
 		false ->
 			{error, 0, "Invalid machine.", State};
 		true ->
-			case drink_machines_sup:is_machine_alive(Machine) of
-				true ->
-					{ok, "Welcome to " ++ MachineStr, State#sunday_state{machine = Machine}};
-				false ->
-					{error, 0, "Machine is down.", State}
-			end
+			{ok, "Welcome to " ++ MachineStr, State#sunday_state{machine = Machine}}
 	end;
 got_command("PASS", [Pass], State) ->
 	case State#sunday_state.userref of
@@ -248,12 +291,36 @@ got_command("PASS", [Pass], State) ->
 	end;
 got_command("PASS", _, State) ->
 	{error, 406, "Invalid parameters.", State};
+got_command("QUERYADMIN", [Username], State) ->
+    {error, 451, "Not implemented.", State};
 got_command("QUIT", _, State) ->
 	{exit, "Disconnecting.", State};
 %got_command("RAND", [_Delay], State) ->
 %	{error, 451, "Not implemented.", State};
 got_command("RAND", _, State) ->
 	{error, 451, "Not implemented.", State}; % Delay 0
+got_command("RMUSER", _, State) ->
+    {error, 451, "Not implemented.", State};
+got_command("SETADMIN", [_, _], State) ->
+    {error, 451, "Not implemented.", State};
+got_command("SETADMIN", _, State) ->
+    {error, 406, "Invalid parameters.", State};
+got_command("SHUTDOWN", ["-r"], State) ->
+    case user_auth:can_admin(State#sunday_state.userref) of
+        true ->
+            init:restart(),
+            {ok, "Restarting...", State};
+        false ->
+            {error, 0, "Permission denied.", State}
+    end;
+got_command("SHUTDOWN", _, State) ->
+    case user_auth:can_admin(State#sunday_state.userref) of
+        true ->
+            halt(),
+            {ok, "Shutting down...", State};
+        false ->
+            {error, 0, "Permission denied.", State}
+    end;
 got_command("STAT", [Slot], State) ->
 	case string:to_integer(Slot) of
 		{error, _Reason} ->

@@ -224,10 +224,15 @@ slots (MachinePid) ->
 slot_info (MachinePid, Slot) when is_integer(Slot) ->
 	safe_gen_call(MachinePid, {slot_info, Slot}).
 
-set_slot_info (MachinePid, SlotInfo = #slot{machine = MachinePid, num = SlotNum, name = Name, price = Price, avail = Avail}) 
-        when is_atom(MachinePid), is_integer(SlotNum), is_list(Name), is_integer(Price), is_integer(Avail),
+set_slot_info (UserRef, SlotInfo = #slot{machine = MachinePid, num = SlotNum, name = Name, price = Price, avail = Avail}) 
+        when is_reference(UserRef), is_atom(MachinePid), is_integer(SlotNum), is_list(Name), is_integer(Price), is_integer(Avail),
         Price >= 0, Avail >= 0, SlotNum >= 0 ->
-    safe_gen_call(MachinePid, {set_slot_info, SlotInfo}).
+    case user_auth:can_admin(UserRef) of
+        true ->
+            safe_gen_call(MachinePid, {set_slot_info, SlotInfo});
+        false ->
+            {error, permission_denied}
+    end.
 
 is_alive (Machine) when is_atom(Machine) ->
     case safe_gen_call(Machine, {is_alive}) of

@@ -175,7 +175,7 @@ got_command("EDITSLOT", [SlotNumStr, Name, CostStr, QuantityStr, _NumDropped, _E
         {_, _, {error, _}} ->
             {error, 406, "Invalid Quantity.", State};
         {{SlotNum, _}, {Cost, _}, {Quantity, _}} ->
-            case drink_machine:set_slot_info(State#sunday_state.machine, State#sunday_state.userref, #slot{
+            case drink_machine:set_slot_info(State#sunday_state.userref, #slot{
                machine = State#sunday_state.machine,
                num = SlotNum,
                name = Name,

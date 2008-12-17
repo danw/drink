@@ -100,6 +100,43 @@ out(A) ->
                         _ ->
                             error(invalid_args)
                     end;
+                "setslot" ->
+                    case {Session#ses.user,
+                          yaws_api:postvar(A, "machine"), 
+                          yaws_api:postvar(A, "slot"),
+                          yaws_api:postvar(A, "name"),
+                          yaws_api:postvar(A, "price"),
+                          yaws_api:postvar(A, "avail")} of
+                        {nil, _, _, _, _, _} ->
+                            error(permission_denied);
+                        {User, {ok, Machine}, {ok, SlotStr}, {ok, Name}, {ok, PriceStr}, {ok, AvailStr}} ->
+                            case {user_auth:can_admin(User),
+                                  string:to_integer(SlotStr),
+                                  string:to_integer(PriceStr),
+                                  string:to_integer(AvailStr)} of
+                                {_, {error, _}, _, _} ->
+                                    error(invalid_args);
+                                {_, _, {error, _}, _} ->
+                                    error(invalid_args);
+                                {_, _, _, {error, _}} ->
+                                    error(invalid_args);
+                                {true, {Slot, _}, {Price, _}, {Avail, _}} ->
+                                    drink_machine:set_slot_info(list_to_atom(Machine), #slot{
+                                        machine = list_to_atom(Machine),
+                                        num = Slot,
+                                        name = Name,
+                                        price = Price,
+                                        avail = Avail
+                                    }),
+                                    ok({struct, machines(drink_machines_sup:machines())});
+                                {false, _, _, _} ->
+                                    error(permission_denied);
+                                _ ->
+                                    error(invalid_args)
+                            end;
+                        _ ->
+                            error(invalid_args)
+                    end;
                 "machines" ->
                     error(wrong_method);
                 "logout" ->

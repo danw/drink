@@ -15,6 +15,7 @@ var little = 5;
 var big = 5;
 var logsLimit = 20;
 var logsOffset = 0;
+var machine_info = null;
 
 (function () {
     length = 400;
@@ -355,7 +356,7 @@ function machine_html(name, machine) {
                 machine.slots[slotnum].price, '</td><td class="slotavail">',
                 pretty_available(machine.slots[slotnum].available), '</td><td class="slotaction">',
                 machine.slots[slotnum].available ? ['<a href="#" onclick="drop(\'', name, '\', ', slotnum, '); return false;" class="logged_in">Drop</a> '].join('') : '',
-                '<a href="#" onclick="return false" class="admin">Edit</a>',
+                '<a href="#" onclick="editSlot(this, \'', name, '\', ', slotnum, '); return false" class="admin">Edit</a>',
                 '</td></tr>'].join('');
     }
     res[res.length] = '</tbody></table>';
@@ -373,6 +374,7 @@ function refreshMachines() {
            if(data.status == 'error') {
                alert('Error getting machine stats');
            } else {
+               machine_info = data.data;
                machinelist = $('#machines').empty();
                for(machine in data.data) {
                    machinelist.append(['<li>', machine_html(machine, data.data[machine]), '</li>'].join(''));
@@ -485,4 +487,47 @@ function gotLogs(data) {
         }
     }
     logElem.append(lines.join(''));
+}
+
+function set_slot_info(machine, num, name, price, avail) {
+    $.ajax({
+        dataType: 'json',
+        type: 'POST',
+        url: '/drink/setslot',
+        data: {machine: machine, slot: num, name: name, price: price, avail: avail},
+        error: function() {
+            alert('Error setting slot info');
+        },
+        success: function(data, status) {
+            if(data.status == 'error') {
+                alert('Error setting slot info: ' + data.reason);
+            } else {
+                machine_info = data.data;
+                machinelist = $('#machines').empty();
+                for(machine in data.data) {
+                    machinelist.append(['<li>', machine_html(machine, data.data[machine]), '</li>'].join(''));
+                }
+                got_current_user();
+            }
+        }
+    });
+}
+
+function editSlot(editLink, machine, slot) {
+    name = prompt("Name", machine_info[machine].slots[slot].name);
+    if(name == null || name == '')
+        return;
+    price = prompt("Price", machine_info[machine].slots[slot].price);
+    if(price == null || price == '')
+        return;
+    price = new Number(price);
+    if(price == NaN || price < 0)
+        return;
+    available = prompt("Available", machine_info[machine].slots[slot].available);
+    if(available == null || available == '')
+        return;
+    available = new Number(available);
+    if(available == NaN || available < 0)
+        return;
+    set_slot_info(machine, slot, name, price, available);
 }

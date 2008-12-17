@@ -91,6 +91,8 @@ out(A) ->
                                             error(permission_denied);
                                         {error, slot_empty} ->
                                             error(slot_empty);
+                                        {error, machine_down} ->
+                                            error(machine_down);
                                         {error, Reason} ->
                                             error(Reason);
                                         _Else ->
@@ -228,23 +230,21 @@ machines([M|Machines]) ->
     [{M, machine_stat(M)}] ++ machines(Machines).
 
 machine_stat(Machine) ->
-    case {drink_machine:is_alive(Machine), drink_machine:temperature(Machine), drink_machine:slots(Machine)} of
-        {true, {ok, Temperature}, {ok, Slots}} ->
+    case {drink_machine:temperature(Machine), drink_machine:slots(Machine)} of
+        {{ok, Temperature}, {ok, Slots}} ->
             {struct, [
-                {connected, true},
+                {connected, drink_machine:is_alive(Machine)},
                 {temperature, Temperature},
                 {slots, {struct, slots(Slots)}}
             ]};
-        {true, {error, no_temp}, {ok, Slots}} ->
+        {{error, no_temp}, {ok, Slots}} ->
             {struct, [
-                {connected, true},
+                {connected, drink_machine:is_alive(Machine)},
                 {temperature, false},
                 {slots, {struct, slots(Slots)}}
             ]};
         _else ->
-            {struct, [
-                {connected, false}
-            ]}
+            false
     end.
 
 slots([]) ->

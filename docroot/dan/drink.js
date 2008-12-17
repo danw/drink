@@ -351,11 +351,14 @@ function pretty_available(count) {
 function machine_html(name, machine) {
     res = ['<h3>', name, '</h3>', '<table><thead><tr><th>Slot Num</th><th>Name</th><th>Price</th><th>Available</th><th>Actions</th></tr></thead><tbody>'];
     for(slotnum in machine.slots) {
+        droppable = (machine.slots[slotnum].available && machine.connected && current_user);
+        if(current_user)
+            droppable = (droppable && (current_user.credits >= machine.slots[slotnum].price));
         res[res.length] = ['<tr><td class="slotnum">', slotnum, '</td><td class="slotname">',
                 machine.slots[slotnum].name, '</td><td class="slotprice">',
                 machine.slots[slotnum].price, '</td><td class="slotavail">',
                 pretty_available(machine.slots[slotnum].available), '</td><td class="slotaction">',
-                machine.slots[slotnum].available ? ['<a href="#" onclick="drop(\'', name, '\', ', slotnum, '); return false;" class="logged_in">Drop</a> '].join('') : '',
+                droppable ? ['<a href="#" onclick="drop(\'', name, '\', ', slotnum, '); return false;">Drop</a> '].join('') : '',
                 '<a href="#" onclick="editSlot(this, \'', name, '\', ', slotnum, '); return false" class="admin">Edit</a>',
                 '</td></tr>'].join('');
     }

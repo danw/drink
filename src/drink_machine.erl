@@ -26,10 +26,10 @@
 -module (drink_machine).
 -behaviour (gen_server).
 
--export ([start_link/2]).
+-export ([start_link/1]).
 -export ([init/1]).
 -export ([handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
--export ([got_response/2]).
+-export ([got_response/2, got_machine_comm/1]).
 -export ([slots/1, drop/2, temperature/1, slot_info/2, is_alive/1, set_slot_info/2]).
 
 -include ("drink_mnesia.hrl").
@@ -37,19 +37,18 @@
 
 -record (dmstate, {
 			machineid,
-			commpid,
+			commpid = nil,
 			record,
 			latest_temp = nil}).
 
-start_link (MachineId, CommPid) ->
-	gen_server:start_link({local, MachineId}, ?MODULE, {MachineId, CommPid}, []).
+start_link (MachineId) ->
+	gen_server:start_link({local, MachineId}, ?MODULE, MachineId, []).
 
-init ({MachineId, CommPid}) ->
+init (MachineId) ->
 	case mnesia:transaction(fun() -> mnesia:read({machine, MachineId}) end) of
 		{atomic, [MachineRecord]} ->
 			State = #dmstate{
 				machineid = MachineId,
-				commpid = CommPid,
 				record = MachineRecord
 			},
 			{ok, State};
@@ -69,12 +68,13 @@ handle_cast (_Request, State) ->
 	{noreply, State}.
 
 handle_call ({drop, Slot}, _From, State) ->
-	case get_slot_by_num(Slot, State) of
-		{ok, SlotInfo} when SlotInfo#slot.avail > 0 ->
+	case {State#dmstate.commpid, get_slot_by_num(Slot, State)} of
+	    {nil, _} ->
+	        {reply, {error, machine_down}, State};
+		{CommPid, {ok, SlotInfo}} when SlotInfo#slot.avail > 0 ->
 			Ref = make_ref(),
 			case timer:send_after(timer:seconds(30), {timeout, Ref}) of
 				{ok, Timer} ->
-					CommPid = State#dmstate.commpid,
 					drink_machine_comm:send_command(CommPid, {drop, Slot}),
 					receive
 						{timeout, Ref} ->
@@ -95,9 +95,9 @@ handle_call ({drop, Slot}, _From, State) ->
 											[State#dmstate.machineid,Reason]),
 					{reply, {error, timer_err}, State}
 			end;
-		{ok, _SlotInfo} ->
+		{_, {ok, _SlotInfo}} ->
 			{reply, {error, not_available}, State};
-		{error, Reason} ->
+		{_, {error, Reason}} ->
 			{reply, {error, Reason}, State}
 	end;
 handle_call ({slots}, _From, State) ->
@@ -141,43 +141,50 @@ handle_call ({temp}, _From, State) ->
 		Temp ->
 			{reply, {ok, Temp}, State}
 	end;
+handle_call ({got_comm, CommPid}, _From, State) ->
+    link(CommPid),
+    {reply, {ok, self()}, State#dmstate{commpid = CommPid}};
+handle_call ({is_alive}, _From, State = #dmstate{commpid = nil}) ->
+    {reply, false, State};
+handle_call ({is_alive}, _From, State) ->
+    {reply, true, State};
 handle_call (_Request, _From, State) ->
 	{reply, {error, unknown}, State}.
 
-handle_info ({got_response, CommPid, Response}, State) ->
-	case State#dmstate.commpid of
-		CommPid ->
-			case Response of
-				drop_ack ->
-					error_logger:error_msg("Drop Ack Received while not dropping!"),
-					{noreply, State};
-				drop_nack ->
-					error_logger:error_msg("Drop Nack Received while not dropping!"),
-					{noreply, State};
-				{temperature, DateTime, Temperature} ->
-					T = #temperature{
-						machine = State#dmstate.machineid, 
-						time = DateTime,
-						temperature = Temperature
-					},
-					drink_mnesia:log_temperature(T),
-					{noreply, State#dmstate{latest_temp = Temperature}};
-				{slot_status, Status} ->
-					update_slot_status(Status, State),
-					{noreply, State};
-				Response ->
-					io:format("Unknown response: ~p~n", [Response]),
-					{noreply, State}
-			end;
-		_Else ->
+handle_info ({got_response, CommPid, Response}, State = #dmstate{commpid = CommPid}) ->
+	case Response of
+		drop_ack ->
+			error_logger:error_msg("Drop Ack Received while not dropping!"),
+			{noreply, State};
+		drop_nack ->
+			error_logger:error_msg("Drop Nack Received while not dropping!"),
+			{noreply, State};
+		{temperature, DateTime, Temperature} ->
+			T = #temperature{
+				machine = State#dmstate.machineid, 
+				time = DateTime,
+				temperature = Temperature
+			},
+			drink_mnesia:log_temperature(T),
+			{noreply, State#dmstate{latest_temp = Temperature}};
+		{slot_status, Status} ->
+			update_slot_status(Status, State),
+			{noreply, State};
+		Response ->
+			io:format("Unknown response: ~p~n", [Response]),
 			{noreply, State}
 	end;
+handle_info ({'EXIT', CommPid, _Reason}, State = #dmstate{commpid = CommPid}) ->
+    {noreply, State#dmstate{commpid = nil}};
 handle_info ({timeout, _DropRef}, State) ->
 	{noreply, State};
 handle_info (_, State) ->
 	{noreply, State}.
 
 % Callback from Drink Machine Comm
+got_machine_comm (MachinePid) ->
+    safe_gen_call(MachinePid, {got_comm, self()}).
+
 got_response (MachinePid, Response) ->
 	MachinePid ! {got_response, self(), Response}.
 
@@ -223,7 +230,12 @@ set_slot_info (MachinePid, SlotInfo = #slot{machine = MachinePid, num = SlotNum,
     safe_gen_call(MachinePid, {set_slot_info, SlotInfo}).
 
 is_alive (Machine) when is_atom(Machine) ->
-    drink_machines_sup:is_machine_alive(Machine).
+    case safe_gen_call(Machine, {is_alive}) of
+        {error, _} ->
+            false;
+        Out ->
+            Out
+    end.
 
 temperature (MachinePid) ->
 	safe_gen_call(MachinePid, {temp}).

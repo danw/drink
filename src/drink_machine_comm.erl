@@ -59,7 +59,7 @@ loop (waiting_for_auth, State) ->
 				{ok, MachineId} ->	% Got a valid machine
 					send(machine_ack, Socket),
 					inet:setopts(Socket, [{active, once}]),
-					case drink_machines_sup:machine_connected(MachineId, self()) of
+					case drink_machine:got_machine_comm(MachineId) of
 						{error, Reason} ->
 							error_logger:error_msg("Failure starting machine: ~p", [Reason]),
 							exit(Reason);

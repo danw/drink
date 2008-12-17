@@ -30,7 +30,7 @@
 -export ([init/1]).
 -export ([handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 -export ([got_response/2]).
--export ([slots/1, drop/2, temperature/1, slot_info/2, is_alive/1]).
+-export ([slots/1, drop/2, temperature/1, slot_info/2, is_alive/1, set_slot_info/2]).
 
 -include ("drink_mnesia.hrl").
 -include_lib ("stdlib/include/qlc.hrl").
@@ -118,6 +118,22 @@ handle_call ({slot_info, SlotNum}, _From, State) ->
 		{aborted, Reason} ->
 			{reply, {error, Reason}, State}
 	end;
+handle_call ({set_slot_info, SlotInfo}, _From, State) ->
+    Q = qlc:q([ X || X <- mnesia:table(slot), X#slot.machine =:= State#dmstate.machineid, X#slot.num =:= SlotInfo#slot.num]),
+    case mnesia:transaction(fun() ->
+        case qlc:eval(Q) of
+            [Slot] ->
+                mnesia:delete_object(Slot),
+                mnesia:write(SlotInfo);
+            _ ->
+                mnesia:abort(invalid_slot)
+        end
+    end) of
+        {atomic, _} ->
+            {reply, ok, State};
+        {aborted, Reason} ->
+            {reply, {error, Reason}, State}
+    end;
 handle_call ({temp}, _From, State) ->
 	case State#dmstate.latest_temp of
 		nil ->
@@ -200,6 +216,11 @@ slots (MachinePid) ->
 
 slot_info (MachinePid, Slot) when is_integer(Slot) ->
 	safe_gen_call(MachinePid, {slot_info, Slot}).
+
+set_slot_info (MachinePid, SlotInfo = #slot{machine = MachinePid, num = SlotNum, name = Name, price = Price, avail = Avail}) 
+        when is_atom(MachinePid), is_integer(SlotNum), is_list(Name), is_integer(Price), is_integer(Avail),
+        Price >= 0, Avail >= 0, SlotNum >= 0 ->
+    safe_gen_call(MachinePid, {set_slot_info, SlotInfo}).
 
 is_alive (Machine) when is_atom(Machine) ->
     drink_machines_sup:is_machine_alive(Machine).

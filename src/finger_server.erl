@@ -114,7 +114,7 @@ process_line(State, Line) ->
         false ->
             case drink_machines_sup:is_machine(Machine) of
                 true ->
-                    case drink_machines_sup:is_machine_alive(Machine) of
+                    case drink_machine:is_alive(Machine) of
                         true ->
                             % TODO: interpret finger protocol
                             header(Machine) ++ machine_state(Machine) ++ footer();

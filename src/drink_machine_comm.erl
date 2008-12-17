@@ -165,7 +165,7 @@ receive_response(<<$8, Remain/binary>>, _State) ->
 		{error, Reason} ->
 			error_logger:error_msg("Failed to convert temperature: ~p", [Reason]),
 			{error, Reason};
-		{0, _Rest} ->
+		{0.0, _Rest} ->
 		    error_logger:warning_msg("Got an invalid temperature: 0"),
 		    {error, invalid_temperature};
 		{Temperature, _Rest} ->

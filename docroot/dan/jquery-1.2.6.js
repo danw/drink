@@ -2566,7 +2566,6 @@ jQuery.extend({
 		data: null,
 		username: null,
 		password: null,
-		multipart: false,
 		accepts: {
 			xml: "application/xml, text/xml",
 			html: "text/html",
@@ -2691,10 +2690,6 @@ jQuery.extend({
 		// Create the request object; Microsoft failed to properly
 		// implement the XMLHttpRequest in IE7, so we use the ActiveXObject when it is available
 		var xhr = window.ActiveXObject ? new ActiveXObject("Microsoft.XMLHTTP") : new XMLHttpRequest();
-
-        // Pass through multipart if supported
-        if( s.multipart && typeof xhr.multipart != 'undefined')
-            xhr.multipart = s.multipart;
 
 		// Open the socket
 		// Passing null username, generates a login popup on Opera (#2865)

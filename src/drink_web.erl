@@ -190,7 +190,7 @@ out(A) ->
                                 {_, {error, _Reason}} ->
                                     error(invalid_args);
                                 {{Offset, _Rest}, {Limit, _Rest}} when Offset >= 0, Limit =< 100 ->
-                                    case drink_mnesia:get_logs(Offset, Limit) of
+                                    case drink_mnesia:get_logs(Session#ses.user, Offset, Limit) of
                                         {ok, Data} ->
                                             ok(format_logs(Offset, Limit, Data));
                                         {error, Reason} ->

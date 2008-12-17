@@ -26,9 +26,10 @@
 -module (drink_mnesia).
 -export ([initialize/0]).
 -export ([log_drop/1, log_money/1, log_temperature/1]).
--export ([get_logs/2]).
+-export ([get_logs/2, get_logs/3]).
 
 -include ("drink_mnesia.hrl").
+-include ("user.hrl").
 
 initialize() ->
 	mnesia:create_schema([node()]),
@@ -76,7 +77,14 @@ mysql_init() ->
     SELECT \"money\" as type, m.time as time, m.username, m.admin, m.direction, m.reason, m.amount FROM money_log as m
     union
     SELECT \"drop\" as type, d.time as time, d.username, d.machine, d.slot, d.status, 0 FROM drop_log as d) AS log
-    ORDER BY log.time DESC LIMIT ?, ?">>).
+    ORDER BY log.time DESC LIMIT ?, ?">>),
+    mysql:prepare(get_logs_user, <<"SELECT * FROM (
+    SELECT \"money\" as type, m.time as time, m.username as u, m.admin, m.direction, m.reason, m.amount
+        FROM money_log as m
+    union
+    SELECT \"drop\" as type, d.time as time, d.username as u, d.machine, d.slot, d.status, 0
+        FROM drop_log as d) AS log
+    WHERE u = ? ORDER BY log.time DESC LIMIT ?, ?">>).
 
 log_drop(Drop) ->
     Status = io_lib:format("~w", [Drop#drop_log.status]),
@@ -145,6 +153,24 @@ log_temperature(Temperature) ->
         {updated, _MySqlRes} ->
             % todo: check if there are records in mnesia to move to mysql
             ok
+    end.
+
+get_logs(UserRef, Index, Count) when is_reference(UserRef), is_integer(Index), is_integer(Count) ->
+    case {user_auth:can_admin(UserRef), user_auth:user_info(UserRef)} of
+        {false, {ok, UserInfo = #user{}}} ->
+            case mysql:execute(drink_log, get_logs_user, [UserInfo#user.username, Index, Count]) of
+                {error, {no_such_statement, get_logs_user}} ->
+                    mysql_init(),
+                    get_logs(UserRef, Index, Count);
+                {error, _MySqlRes} ->
+                    {error, mysql};
+                {data, MySqlRes} ->
+                    {ok, lists:map(fun format_log/1, mysql:get_result_rows(MySqlRes))}
+            end;
+        {false, {error, Reason}} ->
+            {error, Reason};
+        {true, _} ->
+            get_logs(Index, Count)
     end.
 
 get_logs(Index, Count) when is_integer(Index), is_integer(Count) ->

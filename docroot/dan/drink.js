@@ -74,10 +74,10 @@ $(document).ready(function() {
     refreshMachines();
     
     startEventListening();
-    initLogs();
 });
 
 function startEventListening() {
+    return;
     var xhr = new XMLHttpRequest();
     if(typeof xhr.multipart != "undefined") {
         $("body").append("xhr multipart");
@@ -170,6 +170,8 @@ function got_current_user() {
             tabs.tabs('disable', 1)
         }
         $.cssRule('.logged_in', 'display:block');
+        
+        initLogs();
     } else {
         $.cssRule('.logged_in', 'display:none');
         $.cssRule('.admin', 'display:none');

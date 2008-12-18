@@ -46,6 +46,11 @@ $(document).ready(function() {
     tabs = $('#tabs > ul').tabs({cookie: {expires: 7, path: '/', secure: true}, cookieName: 'main'});
     tabs.tabs('disable', 1);
     
+    $(window).resize(function() {
+        temp_plot.setupGrid();
+        temp_plot.draw();
+    });
+    
     refresh_current_user();
     refreshMachines();
     temps_update();
@@ -520,7 +525,7 @@ function temps_update() {
     // fuck javascript
     // now = now + date.getTimezoneOffset() * 60;
     // An hour
-    length = 60 * 60;
+    length = 60 * 60 * 4;
     now = now - length;
     // Make it so that we'll get the most recent temps, won't be exactly an hour, but will be more up to date
     getTemps(now, length + 60);
@@ -538,16 +543,20 @@ function getTemps(From, Length) {
             if(data.status == 'error') {
                 alert('Error getting temps: ' + data.reason);
             } else {
-                bigdrink_temps.data = []
-                littledrink_temps.data = []
-                last = data.data.machines['bigdrink'][0][0]
+                bigdrink_temps.data = [];
+                littledrink_temps.data = [];
+                max_time = From + Length - 60;
+                last = data.data.machines['bigdrink'][0][0];
+                tz_offset = (new Date()).getTimezoneOffset() * 60 * 1000;
                 for(i in data.data.machines['bigdrink']) {
                     t = data.data.machines['bigdrink'][i];
                     if(last + 100 < t[0]) {
                         bigdrink_temps.data.push([(last + 100) * 1000, null]);
                     }
                     last = t[0];
-                    bigdrink_temps.data.push([t[0] * 1000, t[1]]);
+                    if(t[0] > max_time)
+                        max_time = t[0];
+                    bigdrink_temps.data.push([t[0] * 1000 - tz_offset, t[1]]);
                 }
                 last = data.data.machines['littledrink'][0][0]
                 for(i in data.data.machines['littledrink']) {
@@ -556,9 +565,12 @@ function getTemps(From, Length) {
                         littledrink_temps.data.push([(last + 100) * 1000, null]);
                     }
                     last = t[0];
-                    littledrink_temps.data.push([t[0] * 1000, t[1]]);
+                    if(t[0] > max_time)
+                        max_time = t[0];
+                    littledrink_temps.data.push([t[0] * 1000 - tz_offset, t[1]]);
                 }
-                temp_plot = $.plot($('#temperature_plot'), [bigdrink_temps, littledrink_temps], {xaxis: {mode: "time", min: From * 1000, max: From * 1000 + Length * 1000}});
+                temp_plot = $.plot($('#temperature_plot'), [bigdrink_temps, littledrink_temps],
+                    {xaxis: {mode: "time", min: From * 1000 - tz_offset, max: max_time * 1000 - tz_offset}});
             }
         }
     })

@@ -106,13 +106,15 @@ handle_call ({drop, UserRef, Machine, Slot}, _From, State) when is_reference(Use
 		{ok, UserInfo, Perms} ->
 			case can_drop(Perms) of
 				true -> 
-					case drink_machine:slot_info(Machine, Slot) of
-						{ok, SlotInfo} when SlotInfo#slot.avail > 0 ->
+					case {drink_machine:is_alive(Machine), drink_machine:slot_info(Machine, Slot)} of
+						{true, {ok, SlotInfo}} when SlotInfo#slot.avail > 0 ->
 							Result = drop_slot(UserInfo, Machine, Slot, State),
 							{reply, Result, State};
-						{ok, _X} ->
+						{true, {ok, _X}} ->
 							{reply, {error, slot_empty}, State};
-						{error, Reason} ->
+						{false, _} ->
+						    {reply, {error, machine_down}, State};
+						{_, {error, Reason}} ->
 							{reply, {error, Reason}, State}
 					end;
 				false ->

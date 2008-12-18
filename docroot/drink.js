@@ -540,12 +540,22 @@ function getTemps(From, Length) {
             } else {
                 bigdrink_temps.data = []
                 littledrink_temps.data = []
+                last = data.data.machines['bigdrink'][0][0]
                 for(i in data.data.machines['bigdrink']) {
                     t = data.data.machines['bigdrink'][i];
+                    if(last + 100 < t[0]) {
+                        bigdrink_temps.data.push([(last + 100) * 1000, null]);
+                    }
+                    last = t[0];
                     bigdrink_temps.data.push([t[0] * 1000, t[1]]);
                 }
+                last = data.data.machines['littledrink'][0][0]
                 for(i in data.data.machines['littledrink']) {
                     t = data.data.machines['littledrink'][i];
+                    if(last + 240 < t[0]) {
+                        littledrink_temps.data.push([(last + 100) * 1000, null]);
+                    }
+                    last = t[0];
                     littledrink_temps.data.push([t[0] * 1000, t[1]]);
                 }
                 temp_plot = $.plot($('#temperature_plot'), [bigdrink_temps, littledrink_temps], {xaxis: {mode: "time", min: From * 1000, max: From * 1000 + Length * 1000}});

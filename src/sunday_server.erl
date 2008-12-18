@@ -162,8 +162,16 @@ got_command("DROP", [SlotStr], State) ->
 					{error, 0, "Unknown error.", State}
 			end
 	end;		
-got_command("DROP", [_Slot, _Delay], State) ->
-	{error, 451, "Not implemented.", State};
+got_command("DROP", [SlotStr, DelayStr], State) ->
+    case string:to_integer(DelayStr) of
+        {error, _Reason} ->
+            {error, 406, "Invalid parameters.", State};
+        {Delay, _Rest} ->
+            receive
+            after Delay ->
+                got_command("DROP", [SlotStr], State)
+            end
+    end;
 got_command("DROP", _, State) ->
 	{error, 406, "Invalid parameters.", State};
 got_command("EDITSLOT", [SlotNumStr, Name, CostStr, QuantityStr, _NumDropped, _Enabled], State) ->

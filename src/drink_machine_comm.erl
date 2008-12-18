@@ -53,7 +53,7 @@ loop (waiting_for_socket, State) ->
 loop (waiting_for_auth, State) ->
 	#dmcomm_state{socket=Socket} = State,
 	receive
-		{tcp, Socket, Data} ->
+		{tcp, Socket, <<"0", Data/binary>>} ->
 			{ok, Remote} = inet:peername(Socket),
 			case machine_lookup(Remote,binary_to_list(Data) -- "\r\n") of
 				{ok, MachineId} ->	% Got a valid machine
@@ -72,6 +72,9 @@ loop (waiting_for_auth, State) ->
 					error_logger:error_msg("Bad machine password(~p) ~p", [Reason, Data]),
 					exit(Reason)
 			end;
+		{tcp, Socket, _} ->
+		    error_logger:error_msg("Bad machine protocol"),
+		    exit(bad_protocol);
 		{tcp_closed, Socket} ->
 			error_logger:error_msg("TCP Socket Closed"),
 			exit(tcp_closed); 		% At this point, if an error occurs, just exit

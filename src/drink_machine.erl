@@ -277,7 +277,7 @@ update_slot_status(Status, State) ->
 		mnesia:write_lock_table(slot),
 		update_slot_status_mnesia(State#dmstate.machineid, Status) 
 	end) of
-		{atomic, ok} ->
+		{atomic, _} ->
 			ok;
 		{aborted, Reason} ->
 			error_logger:error_msg("Got error updating slot status: ~p", [Reason]),

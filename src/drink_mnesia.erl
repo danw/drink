@@ -200,10 +200,16 @@ get_temps(Since, Seconds) when is_tuple(Since), is_integer(Seconds) ->
     end.
 
 format_log([<<"money">>, {datetime, Time}, User, Admin, Direction, Reason, Amount]) ->
+    AdminUser = case Admin of
+        undefined ->
+            null;
+        Else ->
+            binary_to_list(Else)
+    end,
     #money_log{
         time = Time,
         username = binary_to_list(User),
-        admin = binary_to_list(Admin),
+        admin = AdminUser,
         direction = list_to_atom(binary_to_list(Direction)),
         reason = list_to_atom(binary_to_list(Reason)),
         amount = Amount

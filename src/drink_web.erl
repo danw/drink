@@ -142,6 +142,10 @@ out(A) ->
                         _ ->
                             error(invalid_args)
                     end;
+                "logs" ->
+                    error(wrong_method);
+                "events" ->
+                    error(wrong_method);
                 "machines" ->
                     error(wrong_method);
                 "logout" ->
@@ -193,6 +197,29 @@ out(A) ->
                                     case drink_mnesia:get_logs(Session#ses.user, Offset, Limit) of
                                         {ok, Data} ->
                                             ok(format_logs(Offset, Limit, Data));
+                                        {error, Reason} ->
+                                            error(Reason)
+                                    end;
+                                _ ->
+                                    error(invalid_args)
+                            end;
+                        _ ->
+                            error(invalid_args)
+                    end;
+                "temperatures" ->
+                    case {yaws_api:queryvar(A, "from"), yaws_api:queryvar(A, "length")} of
+                        {{ok, FromStr}, {ok, LengthStr}} ->
+                            case {string:to_integer(FromStr), string:to_integer(LengthStr)} of
+                                {{error, _Reason}, _} ->
+                                    error(invalid_args);
+                                {_, {error, _Reason}} ->
+                                    error(invalid_args);
+                                {{From, _Rest}, {Limit, _Rest}} when From >= 0, Limit >= 0, Limit =< 100000 ->
+                                    FromSecs = From + calendar:datetime_to_gregorian_seconds({{1970, 1, 1}, {0, 0, 0}}),
+                                    FromDate = calendar:gregorian_seconds_to_datetime(FromSecs),
+                                    case drink_mnesia:get_temps(FromDate, Limit) of
+                                        {ok, Data} ->
+                                            ok(format_temps(From, Limit, Data));
                                         {error, Reason} ->
                                             error(Reason)
                                     end;
@@ -362,3 +389,14 @@ format_log(Line = #drop_log{}) ->
                 calendar:datetime_to_gregorian_seconds({{1970, 1, 1},{0, 0, 0}})},
         {status, Line#drop_log.status}
     ]}.
+
+format_temps(Start, Length, Data) -> % TODO: don't hardcode bigdrink and littledrink
+    {struct, [{start, Start}, {length, Length}, {machines, {struct, [
+        {bigdrink, {array, lists:map(fun format_temp/1,
+            lists:filter(fun(E) -> E#temperature.machine =:= bigdrink end, Data))}},
+        {littledrink, {array, lists:map(fun format_temp/1,
+            lists:filter(fun(E) -> E#temperature.machine =:= littledrink end, Data))}}]}}]}.
+
+format_temp(Temp = #temperature{}) ->
+    {array, [calendar:datetime_to_gregorian_seconds(Temp#temperature.time) - 
+     calendar:datetime_to_gregorian_seconds({{1970, 1, 1}, {0, 0, 0}}), Temp#temperature.temperature]}.

@@ -11,23 +11,9 @@ var temp_plot = null;
 var tabs = null;
 var bigdrink_temps = { label: "Big Drink", data: [] };
 var littledrink_temps = { label: "Little Drink", data: [] };
-var little = 5;
-var big = 5;
 var logsLimit = 20;
 var logsOffset = 0;
 var machine_info = null;
-
-(function () {
-    length = 400;
-    x = (new Date()).getTime() - length * 1000;
-    for(i = 0; i < length; i++) {
-        little += Math.random() * 2 - 1;
-        big += Math.random() * 2 - 1;
-        bigdrink_temps.data.push([x, big]);
-        littledrink_temps.data.push([x, little]);
-        x += 1000;
-    }
-})();
 
 $(document).ready(function() {
     $('#login_username').css("color", "gray").focus(function() {
@@ -53,25 +39,16 @@ $(document).ready(function() {
     $('#login_form').submit(login);
     $('#user_admin_get_form').submit(get_user_info);
     
-    temp_plot = $.plot($('#temperature_plot'), [bigdrink_temps, littledrink_temps], {xaxis: {mode: "time"}});
     setInterval(function () {
-        x = (new Date()).getTime();
-        little += Math.random() * 2 - 1;
-        big += Math.random() * 2 - 1;
-        bigdrink_temps.data.push([x, big]);
-        littledrink_temps.data.push([x, little]);
-        bigdrink_temps.data.shift();
-        littledrink_temps.data.shift();
-        temp_plot.setData([bigdrink_temps, littledrink_temps]);
-        temp_plot.setupGrid();
-        temp_plot.draw();
-    }, 1000);
+        temps_update();
+    }, 1000 * 60);
     
     tabs = $('#tabs > ul').tabs({cookie: {expires: 7, path: '/', secure: true}, cookieName: 'main'});
     tabs.tabs('disable', 1);
     
     refresh_current_user();
     refreshMachines();
+    temps_update();
     
     startEventListening();
 });
@@ -535,4 +512,44 @@ function editSlot(editLink, machine, slot) {
     if(available == NaN || available < 0)
         return;
     set_slot_info(machine, slot, name, price, available);
+}
+
+function temps_update() {
+    date = new Date();
+    now = Math.floor(date.getTime() / 1000);
+    // fuck javascript
+    // now = now + date.getTimezoneOffset() * 60;
+    // An hour
+    length = 60 * 60;
+    now = now - length;
+    // Make it so that we'll get the most recent temps, won't be exactly an hour, but will be more up to date
+    getTemps(now, length + 60);
+}
+
+function getTemps(From, Length) {
+    $.ajax({
+        dataType: 'json',
+        url: '/drink/temperatures',
+        data: {from: From, length: Length},
+        error: function() {
+            alert('Error getting temps');
+        },
+        success: function(data, status) {
+            if(data.status == 'error') {
+                alert('Error getting temps: ' + data.reason);
+            } else {
+                bigdrink_temps.data = []
+                littledrink_temps.data = []
+                for(i in data.data.machines['bigdrink']) {
+                    t = data.data.machines['bigdrink'][i];
+                    bigdrink_temps.data.push([t[0] * 1000, t[1]]);
+                }
+                for(i in data.data.machines['littledrink']) {
+                    t = data.data.machines['littledrink'][i];
+                    littledrink_temps.data.push([t[0] * 1000, t[1]]);
+                }
+                temp_plot = $.plot($('#temperature_plot'), [bigdrink_temps, littledrink_temps], {xaxis: {mode: "time", min: From * 1000, max: From * 1000 + Length * 1000}});
+            }
+        }
+    })
 }

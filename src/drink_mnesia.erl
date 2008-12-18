@@ -26,7 +26,7 @@
 -module (drink_mnesia).
 -export ([initialize/0]).
 -export ([log_drop/1, log_money/1, log_temperature/1]).
--export ([get_logs/2, get_logs/3]).
+-export ([get_logs/2, get_logs/3, get_temps/2]).
 
 -include ("drink_mnesia.hrl").
 -include ("user.hrl").
@@ -74,17 +74,18 @@ mysql_init() ->
     mysql:prepare(log_money, <<"INSERT INTO money_log VALUES (?, ?, ?, ?, ?, ?)">>),
     mysql:prepare(log_drop, <<"INSERT INTO drop_log VALUES (?, ?, ?, ?, ?)">>),
     mysql:prepare(get_logs, <<"SELECT * FROM (
-    SELECT \"money\" as type, m.time as time, m.username, m.admin, m.direction, m.reason, m.amount FROM money_log as m
-    union
-    SELECT \"drop\" as type, d.time as time, d.username, d.machine, d.slot, d.status, 0 FROM drop_log as d) AS log
-    ORDER BY log.time DESC LIMIT ?, ?">>),
+        SELECT \"money\" as type, m.time as time, m.username, m.admin, m.direction, m.reason, m.amount FROM money_log as m
+        union
+        SELECT \"drop\" as type, d.time as time, d.username, d.machine, d.slot, d.status, 0 FROM drop_log as d) AS log
+        ORDER BY log.time DESC LIMIT ?, ?">>),
     mysql:prepare(get_logs_user, <<"SELECT * FROM (
-    SELECT \"money\" as type, m.time as time, m.username as u, m.admin, m.direction, m.reason, m.amount
-        FROM money_log as m
-    union
-    SELECT \"drop\" as type, d.time as time, d.username as u, d.machine, d.slot, d.status, 0
-        FROM drop_log as d) AS log
-    WHERE u = ? ORDER BY log.time DESC LIMIT ?, ?">>).
+        SELECT \"money\" as type, m.time as time, m.username as u, m.admin, m.direction, m.reason, m.amount
+            FROM money_log as m
+        union
+        SELECT \"drop\" as type, d.time as time, d.username as u, d.machine, d.slot, d.status, 0
+            FROM drop_log as d) AS log
+        WHERE u = ? ORDER BY log.time DESC LIMIT ?, ?">>),
+    mysql:prepare(get_temps, <<"SELECT * FROM temperature_log WHERE time > ? AND time < ? ORDER BY time ASC">>).
 
 log_drop(Drop) ->
     Status = io_lib:format("~w", [Drop#drop_log.status]),
@@ -110,6 +111,8 @@ log_drop(Drop) ->
             ok
     end.
 
+log_money(Money = #money_log{admin = nil}) ->
+    log_money(Money#money_log{admin = null});
 log_money(Money) ->
     case mysql:execute(drink_log, log_money, [
                                 Money#money_log.time,
@@ -184,6 +187,18 @@ get_logs(Index, Count) when is_integer(Index), is_integer(Count) ->
             {ok, lists:map(fun format_log/1, mysql:get_result_rows(MySqlRes))}
     end.
 
+get_temps(Since, Seconds) when is_tuple(Since), is_integer(Seconds) ->
+    Until = calendar:gregorian_seconds_to_datetime(Seconds + calendar:datetime_to_gregorian_seconds(Since)),
+    case mysql:execute(drink_log, get_temps, [Since, Until]) of
+        {error, {no_such_statement, get_temps}} ->
+            mysql_init(),
+            get_temps(Since, Seconds);
+        {error, _MySqlRes} ->
+            {error, mysql};
+        {data, MySqlRes} ->
+            {ok, lists:map(fun format_temp/1, mysql:get_result_rows(MySqlRes))}
+    end.
+
 format_log([<<"money">>, {datetime, Time}, User, Admin, Direction, Reason, Amount]) ->
     #money_log{
         time = Time,
@@ -200,4 +215,11 @@ format_log([<<"drop">>, {datetime, Time}, User, Machine, Slot, Status, 0]) ->
         machine = list_to_atom(binary_to_list(Machine)),
         slot = binary_to_list(Slot),
         status = binary_to_list(Status)
+    }.
+
+format_temp([Machine, {datetime, Time}, Temp]) ->
+    #temperature{
+        machine = list_to_atom(binary_to_list(Machine)),
+        time = Time,
+        temperature = Temp
     }.

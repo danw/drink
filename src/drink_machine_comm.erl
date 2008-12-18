@@ -55,7 +55,7 @@ loop (waiting_for_auth, State) ->
 	receive
 		{tcp, Socket, <<"0", Data/binary>>} ->
 			{ok, Remote} = inet:peername(Socket),
-			case machine_lookup(Remote,binary_to_list(Data) -- "\r\n") of
+			case machine_lookup(Remote, binary_to_list(Data) -- "\r\n") of
 				{ok, MachineId} ->	% Got a valid machine
 					send(machine_ack, Socket),
 					inet:setopts(Socket, [{active, once}]),
@@ -120,11 +120,21 @@ send_command(MachineComm, Command) ->
 % Looking up a machine - Address, Password
 machine_lookup(From, Pass) when is_list(Pass) ->
 	machine_lookup(From, list_to_atom(Pass));
-machine_lookup({_Address, _Port}, Pass) when is_atom(Pass) ->
-	Q = qlc:q([ X#machine.machine || X <- mnesia:table(machine), X#machine.password =:= Pass ]),
+machine_lookup({Address, _Port}, Pass) when is_atom(Pass) ->
+	Q = qlc:q([ {X#machine.machine, remote_ip} || X <- mnesia:table(machine),
+	                                              X#machine.password =:= Pass ]),
 	case mnesia:transaction(fun() -> qlc:eval(Q) end) of
-		{atomic, [MachineId]} ->
-			{ok, MachineId};
+		{atomic, [{MachineId, remote_ip}]} ->
+		    case Address of
+		        {129,21,60,35} ->
+		            {ok, MachineId};
+		        {129,21,60,36} ->
+		            {ok, MachineId};
+		        {129,21,60,112} ->
+		            {ok, MachineId};
+		        _ ->
+		            {error, ip_mismatch}
+		    end;
 		{atomic, []} ->
 			{error, badpass};
 		{aborted, Reason} ->

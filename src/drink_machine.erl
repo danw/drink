@@ -142,6 +142,12 @@ handle_call ({temp}, _From, State) ->
 			{reply, {ok, Temp}, State}
 	end;
 handle_call ({got_comm, CommPid}, _From, State) ->
+    case State#dmstate.commpid of
+        nil ->
+            ok;
+        Pid ->
+            exit(Pid, machine_reconnect)
+    end,
     link(CommPid),
     {reply, {ok, self()}, State#dmstate{commpid = CommPid}};
 handle_call ({is_alive}, _From, State = #dmstate{commpid = nil}) ->

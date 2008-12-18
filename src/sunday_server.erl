@@ -76,7 +76,7 @@ loop (normal, State) ->
 			inet:setopts(Socket, [{active, once}]),
 			loop(normal, NewState);
 		{tcp_closed, Socket} ->
-			error_logger:error_msg("TCP Socket Closed"),
+            % error_logger:error_msg("TCP Socket Closed"),
 			exit(tcp_closed);
 		{tcp_error, Socket, Reason} ->
 			error_logger:error_msg("TCP Socket Error: ~p", [Reason]),

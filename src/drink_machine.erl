@@ -272,16 +272,21 @@ decrement_slot_avail(SlotNum, State) ->
 			{error, Reason}
 	end.
 
-update_slot_status(Status, State) ->
-	case mnesia:transaction(fun() ->
-		mnesia:write_lock_table(slot),
-		update_slot_status_mnesia(State#dmstate.machineid, Status) 
-	end) of
-		{atomic, _} ->
-			ok;
-		{aborted, Reason} ->
-			error_logger:error_msg("Got error updating slot status: ~p", [Reason]),
-			{error, Reason}
+update_slot_status(Status, State = #dmstate{record = MachineInfo}) ->
+    case MachineInfo#machine.available_sensor of
+        true ->
+        	case mnesia:transaction(fun() ->
+        		mnesia:write_lock_table(slot),
+        		update_slot_status_mnesia(State#dmstate.machineid, Status) 
+        	end) of
+        		{atomic, _} ->
+        			ok;
+        		{aborted, Reason} ->
+        			error_logger:error_msg("Got error updating slot status: ~p", [Reason]),
+        			{error, Reason}
+        	end;
+        false ->
+            ok
 	end.
 
 update_slot_status_mnesia(_Machine, []) ->

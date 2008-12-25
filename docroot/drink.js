@@ -5,8 +5,15 @@
  * Licensed under the MIT (MIT-LICENSE.txt) license
  */
 
+$.ui.tabs.getter += " idx";
+$.extend($.ui.tabs.prototype, {
+    idx: function(str) {
+        elm = this.$tabs.filter('[href$=' + str + ']').eq(0);
+        return this.$tabs.index( elm );
+    }
+});
+
 var current_user = false;
-var tabs = null;
 
 $(document).ready(function() {
     $('#login_username, #user_admin_username').css("color", "gray").focus(function() {
@@ -25,18 +32,18 @@ $(document).ready(function() {
         
     $('#login_form').submit(login);
     
-    tabs = $('#tabs > ul').tabs({cookie: {expires: 7, path: '/', secure: true}, cookieName: 'main'});
-    tabs.tabs('disable', 1);
+    drink.tab_elem = $('#tabs > ul').tabs({cookie: {expires: 7, path: '/', secure: true}, cookieName: 'main'});
     
+    got_current_user();
     refresh_current_user();
     
     drink.log("Init");
-    for(tab in drink.tabs) {
+    for(var tab in drink.tabs) {
         drink.log("... " + tab);
         drink.tabs[tab].init();
     }
     drink.log("Refresh");
-    for(tab in drink.tabs) {
+    for(var tab in drink.tabs) {
         drink.log("... " + tab);
         drink.tabs[tab].refresh();
     }
@@ -121,31 +128,36 @@ function login() {
 }
 
 function got_current_user() {
-    $.cssRule('.logging_in', 'display:none');
+    $('.logging_in').hide();
+
     if(current_user != false) {
         $('#login_password').val('');
-        $.cssRule('.logged_out', 'display:none');
-        $('#currentuser').html(current_user.username);
-        $('#currentuser_balance').html(current_user.credits);
-        if(current_user.admin) {
-            $.cssRule('.admin', 'display:block');
-            $.cssRule('span.admin', 'display:inline');
-            $.cssRule('li.admin', 'display:list-item');
-            tabs.tabs('enable', 1)
-        } else {
-            $.cssRule('.admin', 'display:none');
-            if(tabs.data('selected.tabs') == 1)
-                tabs.tabs('select', 0);
-            tabs.tabs('disable', 1)
-        }
-        $.cssRule('.logged_in', 'display:block');
+        $('.logged_out').hide();
+        $('#currentuser').text(current_user.username);
+        $('#currentuser_balance').text(current_user.credits);
+        $('.logged_in').show();
+        $('.admin').show();
     } else {
-        $.cssRule('.logged_in', 'display:none');
-        $.cssRule('.admin', 'display:none');
-        if(tabs.data('selected.tabs') == 1)
-            tabs.tabs('select', 0);
-        tabs.tabs('disable', 1);
-        $.cssRule('.logged_out', 'display:block');
+        $('.logged_in').hide();        
+        $('.logged_out').show();
+    }
+    
+    drink.tab_elem.data('disabled.tabs', []);
+    for(var tab in drink.tabs) {
+        t = drink.tabs[tab];
+        
+        if((t.user_required && current_user == false) || (t.admin_required && (current_user == false || !current_user.admin))) {
+            idx = drink.tab_elem.tabs('idx', tab);
+            if(idx == -1)
+                drink.log("Broken! can't find tab");
+            
+            if(drink.tab_elem.data('selected.tabs') == idx) {
+                // TODO: figure out first legit tab to select
+                drink.tab_elem.tabs('select', 0);
+            }
+            
+            drink.tab_elem.tabs('disable', idx );
+        }
     }
 }
 
@@ -228,8 +240,10 @@ drink.time = {
     }
 }
 
+drink.tab_elem = null;
 drink.tabs = {}
-drink.tabs.tempGraph = new (function() {
+
+drink.tabs.temperatures = new (function() {
     var Length = 60 * 60 * 4; // 4 hours of data
     var MaxBreak = 120; // Break the graph if there is more than 2 minutes between data points
     var plot = null;
@@ -322,7 +336,7 @@ drink.tabs.logs = new (function () {
         logElem = $('#logcontainer').empty();
         lines = [];
 
-        for(i = 0; i < data.lines.length; i++) {
+        for(var i = 0; i < data.lines.length; i++) {
             l = data.lines[i];
             
             time = drink.time.fromUTC(l.time);
@@ -376,7 +390,7 @@ drink.tabs.logs = new (function () {
     return this;
 })();
 
-drink.tabs.machines = new (function() {
+drink.tabs.drink_machines = new (function() {
     var machine_info = false;
     
     var machineObj = this;
@@ -392,14 +406,14 @@ drink.tabs.machines = new (function() {
     }
 
     var machine_dom = function(name, machine) {
-        m = $('<h3></h3><table><thead><tr><th>Slot Num</th><th>Name</th><th>Price</th><th>Available</th><th>Actions</th></tr></thead><tbody></tbody></table>');
+        var m = $('<h3></h3><table><thead><tr><th>Slot Num</th><th>Name</th><th>Price</th><th>Available</th><th>Actions</th></tr></thead><tbody></tbody></table>');
         m.filter('h3').text(name);
         
         slots = m.find('tbody');
         for(slotnum in machine.slots) {
             slot = machine.slots[slotnum];
             
-            droppable = (slot.available && machine.connected && current_user);
+            var droppable = (slot.available && machine.connected && current_user);
             if(current_user)
                 droppable = (droppable && (current_user.credits >= slot.price));
 
@@ -412,7 +426,7 @@ drink.tabs.machines = new (function() {
             s.find('.slotname').text(slot.name);
             s.find('.slotprice').text(slot.price);
             s.find('.slotavail').text(pretty_available(slot.available));
-            actions = s.find('.slotactions');
+            var actions = s.find('.slotactions');
             
             $('<a class="slotaction_drop" href="#"> Drop </a>').appendTo(actions).click(function() {
                 slot = $(this).parents('tr').eq(0);
@@ -527,12 +541,6 @@ drink.tabs.user_admin = new (function() {
         return false;
     }
 
-    var ibutton_str = function(ibuttons) {
-        return $.map(ibuttons, function(ibutton) {
-            return ['<li>', ibutton, ' <a href="#" onclick="removeiButton(\'', ibutton, '\'); return false;">X</a></li>'].join('');
-        }).join('');
-    }
-
     var got_user_info = function(userinfo) {
         if(current_user.username == userinfo.username) {
             current_user = userinfo;
@@ -546,7 +554,7 @@ drink.tabs.user_admin = new (function() {
         $('#user_admin_user_admin').text(current_edit_user.admin);
         ibuttons = $('#user_admin_user_ibuttons').empty();
         $.each(current_edit_user.ibuttons, function(n, ibutton) {
-            i = $('<li><span class="ibutton"></span> <a href="#">X</a></li>').appendTo(ibuttons).data("ibutton", ibutton);
+            var i = $('<li><span class="ibutton"></span> <a href="#">X</a></li>').appendTo(ibuttons).data("ibutton", ibutton);
             i.find('.ibutton').text(ibutton);
             i.find('a').click(removeiButton);
         });

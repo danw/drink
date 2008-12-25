@@ -236,6 +236,8 @@ out(A) ->
                 "events" ->
                     drink_web_events:register([temperature, drop]),
                     [{streamcontent, "multipart/x-mixed-replace;boundary=\"eventboundaryx\"", "--eventboundaryx\nContent-type: application/json\n\n" ++ json:encode(true) ++ "\n\n"}];
+                "setslot" ->
+                    error(wrong_method);
                 "drop" ->
                     error(wrong_method);
                 "login" ->

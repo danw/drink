@@ -47,8 +47,27 @@
 			<form id="user_admin_get_form">
 			<input type="text" id="user_admin_username" value="username"><input type="submit" value="Get Info &rarr;">
 			</form>
-			<div id="user_admin_mod_form">
-			</div>
+			<table>
+				<tr><th>Username:</th><td id="user_admin_user_username"></td></tr>
+				<tr><th>Credits:</th><td>
+					<form id="user_admin_mod_credits_form">
+						<span id="user_admin_user_credits"></span>
+						<select id="user_admin_mod_reason">
+							<option value="add_money">Add Money</option>
+							<option value="fix_amount">Fix Amount</option>
+							<option value="other">Other</option>
+						</select>
+						<input type="text" id="user_admin_mod_credits" />
+						<input type="submit" value="Mod &rarr;">
+					</form>
+				</td></tr>
+				<tr><th>iButtons:</th><td>
+					<ul id="user_admin_user_ibuttons">
+					</ul>
+					<a id="user_admin_add_ibutton" href="#">Add</a>
+				</td></tr>
+				<tr><th>Admin</th><td><span id="user_admin_user_admin"></span> <a href="#" id="user_admin_toggle_admin">Toggle</td></tr>
+			</table>
 		</div>
 
 		<div id="temperatures">

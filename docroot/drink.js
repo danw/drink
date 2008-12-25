@@ -6,22 +6,24 @@
  */
 
 var current_user = false;
-var current_edit_user = false;
 var tabs = null;
 
 $(document).ready(function() {
     $('#login_username, #user_admin_username').css("color", "gray").focus(function() {
         if(this.value == 'username') {
-            $(this).css('color', 'black').val('');
+            $(this).val('');
         }
+        $(this).css('color', 'black');
     }).blur(function() {
         if(this.value == '') {
             $(this).css('color', 'gray').val('username');
         }
+    }).each(function() {
+        if(this.value != 'username')
+            $(this).css('color', 'black');
     });
         
     $('#login_form').submit(login);
-    $('#user_admin_get_form').submit(get_user_info);
     
     tabs = $('#tabs > ul').tabs({cookie: {expires: 7, path: '/', secure: true}, cookieName: 'main'});
     tabs.tabs('disable', 1);
@@ -145,130 +147,6 @@ function got_current_user() {
         tabs.tabs('disable', 1);
         $.cssRule('.logged_out', 'display:block');
     }
-}
-
-function get_user_info() {
-    username = $('#user_admin_username').val();
-    if(username == 'username' || username == '')
-        return false;
-    $.ajax({
-        data: {user: username},
-        dataType: 'json',
-        url: '/drink/userinfo',
-        error: function() {
-            alert('Error getting user info');
-        },
-        success: function(data, status) {
-            if(data.status == 'error') {
-                alert('Error getting user info');
-            } else {
-                got_user_info(data.data);
-            }
-        }
-    });
-    return false;
-}
-
-function ibutton_str(ibuttons) {
-    return $.map(ibuttons, function(ibutton) {
-        return ['<li>', ibutton, ' <a href="#" onclick="removeiButton(\'', ibutton, '\'); return false;">X</a></li>'].join('');
-    }).join('');
-}
-
-function got_user_info(userinfo) {
-    current_edit_user = userinfo;
-    html = ['<table><tr><th>Username:</th><td>', userinfo.username, '</td></tr><tr><th>Credits:</th><td>',
-            userinfo.credits, '<form onsubmit="modcredits();return false;"><select id="user_admin_mod_reason" onchange="modcredits_reason_change();">',
-            '<option value="add_money">Add Money</option>',
-            '<option value="fix_amount">Fix Amount</option>',
-            '<option value="other">Other</option>',
-            '</select><input type="text" id="user_admin_mod_credits"><input type="submit" value="Mod &rarr;"></form>',
-            '</td></tr><tr><th>iButtons: </th><td><ul>',
-            ibutton_str(userinfo.ibuttons), '</ul><a href="#" onclick="addiButton();return false;">Add</a></td></tr><tr><th>Admin:</th><td>',
-            userinfo.admin, ' <a href="#" onclick="toggle_admin(); return false;">Toggle</a></td></tr></table>'];
-    $('#user_admin_mod_form').empty().append(html.join(''));
-}
-
-function addiButton() {
-    if(current_edit_user == false)
-        return;
-    ibutton = prompt("Enter iButton:");
-    if(ibutton == '' || ibutton == null)
-        return;
-    mod_user(current_edit_user.username, "addibutton", ibutton, '');
-}
-
-function removeiButton(ibutton) {
-    if(current_edit_user == false)
-        return;
-    if(confirm("Are you sure you want to delete: " + ibutton))
-        mod_user(current_edit_user.username, "delibutton", ibutton, '');
-}
-
-function modcredits_reason_change() {
-    reason = $('#user_admin_mod_reason');
-    credits = $('#user_admin_mod_credits');
-    if(reason.val() == 'fix_amount' && credits.val() == '') {
-        credits.val(current_edit_user.credits);
-    }
-    if(reason.val() == 'add_money' && credits.val() == '' + current_edit_user.credits) {
-        credits.val('');
-    }
-}
-
-function modcredits() {
-    diff = parseInt($('#user_admin_mod_credits').val());
-    if(diff == NaN) {
-        alert("Not a Number!");
-        return;
-    }
-    reason = $('#user_admin_mod_reason').val();
-    if(reason == 'other') {
-        while(reason == 'other' || reason == '')
-            reason = prompt("Please enter reason: (lower case with underscores)");
-        if(reason == null)
-            return;
-        if(!confirm("Press OK if the value is the difference of they're current balance, Cancel if it's the full value.")) {
-            diff = diff - current_edit_user.credits;
-        }
-    } else if(reason == 'fix_amount') {
-        diff = diff - current_edit_user.credits;
-    }
-    if(diff == 0)
-        return;
-    mod_user(current_edit_user.username, "modcredits", diff, reason);
-}
-
-function toggle_admin() {
-    if(current_edit_user == false)
-        return;
-    mod_user(current_edit_user.username, "admin", !current_edit_user.admin, '');
-}
-
-function mod_user(username, attr, value, reason) {
-    $('#user_admin_mod_form a').empty();
-    $('#user_admin_mod_form form').empty();
-    $.ajax({
-        data: {username: username, attr: attr, value: value, reason: reason},
-        dataType: 'json',
-        url: '/drink/moduser',
-        type: 'POST',
-        error: function() {
-            got_user_info(current_edit_user);
-            alert('Error setting user info');
-        },
-        success: function(data, status) {
-            if(data.status == 'error') {
-                got_user_info(current_edit_user);
-                alert('Error setting user info, reason:' + data.reason);
-            } else {
-                if(current_edit_user.username == current_user.username)
-                    current_user = data.data;
-                got_current_user();
-                got_user_info(data.data);
-            }
-        }
-    });
 }
 
 function logout() {
@@ -408,6 +286,9 @@ drink.tabs.tempGraph = new (function() {
         }, gotTemps);
     }
     
+    this.user_required = false;
+    this.admin_required = false;
+    
     this.refresh = function() {
         getTemps(drink.time.nowUTC() - Length, Length + 60);
     }
@@ -466,6 +347,9 @@ drink.tabs.logs = new (function () {
         }
         logElem.append(lines.join(''));
     }
+    
+    this.user_required = true;
+    this.admin_required = false;
 
     this.refresh = function() {
         drink.ajax({
@@ -611,6 +495,9 @@ drink.tabs.machines = new (function() {
         drop(machine, slot, delay);
     }
     
+    this.user_required = false;
+    this.admin_required = false;
+    
     this.refresh = function() {
         drink.ajax({
             url: '/drink/machines'
@@ -619,6 +506,144 @@ drink.tabs.machines = new (function() {
     
     this.init = function() {
         
+    }
+    
+    return this;
+})();
+
+drink.tabs.user_admin = new (function() {
+    var current_edit_user = null;
+    
+    var get_user_info = function() {
+        username = $('#user_admin_username').val();
+        if(username == 'username' || username == '')
+            return false;
+        
+        drink.ajax({
+            url: '/drink/userinfo',
+            data: {user: username}
+        }, got_user_info);
+
+        return false;
+    }
+
+    var ibutton_str = function(ibuttons) {
+        return $.map(ibuttons, function(ibutton) {
+            return ['<li>', ibutton, ' <a href="#" onclick="removeiButton(\'', ibutton, '\'); return false;">X</a></li>'].join('');
+        }).join('');
+    }
+
+    var got_user_info = function(userinfo) {
+        if(current_user.username == userinfo.username) {
+            current_user = userinfo;
+            got_current_user();
+        }
+        
+        current_edit_user = userinfo;
+
+        $('#user_admin_user_username').text(current_edit_user.username);
+        $('#user_admin_user_credits').text(current_edit_user.credits);
+        $('#user_admin_user_admin').text(current_edit_user.admin);
+        ibuttons = $('#user_admin_user_ibuttons').empty();
+        $.each(current_edit_user.ibuttons, function(n, ibutton) {
+            i = $('<li><span class="ibutton"></span> <a href="#">X</a></li>').appendTo(ibuttons).data("ibutton", ibutton);
+            i.find('.ibutton').text(ibutton);
+            i.find('a').click(removeiButton);
+        });
+        
+        $('#user_admin > table').show();
+    }
+
+    var addiButton = function() {
+        if(current_edit_user == null)
+            return;
+        ibutton = prompt("Enter iButton:");
+        if(ibutton == '' || ibutton == null)
+            return;
+        mod_user(current_edit_user.username, "addibutton", ibutton, '');
+        
+        return false;
+    }
+
+    var removeiButton = function() {
+        if(current_edit_user == null)
+            return;
+        
+        ibutton = $(this).parents('li').eq(0).data("ibutton");
+        if(confirm("Are you sure you want to delete: " + ibutton))
+            mod_user(current_edit_user.username, "delibutton", ibutton, '');
+        
+        return false;
+    }
+
+    var modcredits_reason_change = function() {
+        reason = $('#user_admin_mod_reason');
+        credits = $('#user_admin_mod_credits');
+        if(reason.val() == 'fix_amount' && credits.val() == '') {
+            credits.val(current_edit_user.credits);
+        }
+        if(reason.val() == 'add_money' && credits.val() == '' + current_edit_user.credits) {
+            credits.val('');
+        }
+    }
+
+    var modcredits = function() {
+        diff = parseInt($('#user_admin_mod_credits').val());
+        if(diff == NaN) {
+            alert("Not a Number!");
+            return;
+        }
+        reason = $('#user_admin_mod_reason').val();
+        if(reason == 'other') {
+            while(reason == 'other' || reason == '')
+                reason = prompt("Please enter reason: (lower case with underscores)");
+            if(reason == null)
+                return;
+            if(!confirm("Press OK if the value is the difference of they're current balance, Cancel if it's the full value.")) {
+                diff = diff - current_edit_user.credits;
+            }
+        } else if(reason == 'fix_amount') {
+            diff = diff - current_edit_user.credits;
+        }
+        if(diff == 0)
+            return;
+        mod_user(current_edit_user.username, "modcredits", diff, reason);
+        
+        return false;
+    }
+
+    var toggle_admin = function() {
+        if(current_edit_user == null)
+            return;
+        mod_user(current_edit_user.username, "admin", !current_edit_user.admin, '');
+        
+        return false;
+    }
+
+    var mod_user = function(username, attr, value, reason) {
+        $('#user_admin_mod_form a').empty();
+        $('#user_admin_mod_form form').empty();
+        drink.ajax({
+            url: '/drink/moduser',
+            data: { username: username, attr: attr, value: value, reason: reason },
+            type: 'POST'
+        }, got_user_info);
+    }
+    
+    this.user_required = true;
+    this.admin_required = true;
+    
+    this.refresh = function() {
+        
+    }
+    
+    this.init = function() {
+        $('#user_admin_get_form').submit(get_user_info);
+        $('#user_admin_mod_credits_form').submit(modcredits);
+        $('#user_admin_add_ibutton').click(addiButton);
+        $('#user_admin_toggle_admin').click(toggle_admin);
+        $('#user_admin_mod_reason').change(modcredits_reason_change);
+        $('#user_admin > table').hide();
     }
     
     return this;

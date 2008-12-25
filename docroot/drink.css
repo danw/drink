@@ -64,7 +64,7 @@ tbody tr td:first-child {
     margin: 0;
 }
 
-#user_admin_mod_form li {
+#user_admin_user_ibuttons, .ibutton {
     font-family: monospace;
 }
 

@@ -29,8 +29,6 @@ $(document).ready(function() {
     });
     
     drink.user.init();
-    drink.user.refresh();
-    drink.tab.init();
     
     startEventListening();
 });
@@ -156,7 +154,8 @@ drink.user = new (function() {
             $('#user_login').show();
         }
 
-        $(window).trigger('user.drink', current_user);
+        if(arguments.length != 2 || arguments[1])
+            $(window).trigger('user.drink', current_user);
     }
     
     var login = function() {
@@ -184,6 +183,8 @@ drink.user = new (function() {
             gotUser(false);
             $('#login_username').focus();
         });
+        
+        return false;
     }
     
     this.refresh = function() {
@@ -198,9 +199,23 @@ drink.user = new (function() {
         $('#login_form').submit(login);
         $('#user_info a').click(logout);
         
-        $('#user_login').show();
-        $('#logging_in').hide();
-        $('#user_info').hide();
+        $('#header').hide();
+        $('#tabs').hide();
+        
+        var postInit = function() {
+            var user = false;
+            if(arguments[0] != 'not_logged_in')
+                user = arguments[0];
+            gotUser(user, false);
+            $('#header').show();
+            $('#tabs').show();
+            
+            drink.tab.init();
+        }
+        
+        drink.ajax({
+            url: '/drink/currentuser'
+        }, postInit, postInit);
     }
     
     this.current = function() {
@@ -233,7 +248,7 @@ drink.tab = new (function() {
                 if(idx == -1)
                     drink.log("Broken! can't find tab");
 
-                if(tab_elem.data('selected.tabs') == idx) {
+                if(selected == idx) {
                     // TODO: figure out first legit tab to select
                     tab_elem.tabs('select', 0);
                 }
@@ -277,6 +292,7 @@ drink.tab = new (function() {
             if(tab_elem.tabs('idx', tab) == selected)
                 self.selectedTab = tab;
         tab_elem.bind('tabsshow', tabSelected);
+        update_user(null, drink.user.current());
         
         $(window).bind('user.drink', update_user);
         $(window).bind('user.drink', function(e, userinfo) {
@@ -539,6 +555,8 @@ drink.tabs.drink_machines = new (function() {
         for(var machine in data) {
             machinelist.append(machine_dom(machine, data[machine]).wrap('<li></li>'));
         }
+        
+        self.user_update(drink.user.current());
     }
     
     var set_slot_info = function(machine, num, name, price, avail) {
@@ -616,7 +634,21 @@ drink.tabs.drink_machines = new (function() {
             edits.hide();
         } else {
             // todo - droppable
-            drops.show();
+            drops.each(function() {
+                var row = $(this).parents('tr').eq(0);
+                var machine = machine_info[$(row).data("machine")];
+                var slot = machine.slots[$(row).data("slotnum")];
+                
+                var droppable = true;
+                if(!machine.connected) droppable = false;
+                if(!slot.available) droppable = false;
+                if(userinfo.credits < slot.price) droppable = false;
+                
+                if(droppable)
+                    $(this).show();
+                else
+                    $(this).hide();
+            });
             if(userinfo.admin) 
                 edits.show();
             else

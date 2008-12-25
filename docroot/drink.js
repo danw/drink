@@ -7,16 +7,11 @@
 
 var current_user = false;
 var current_edit_user = false;
-var temp_plot = null;
 var tabs = null;
-var bigdrink_temps = { label: "Big Drink", data: [] };
-var littledrink_temps = { label: "Little Drink", data: [] };
-var logsLimit = 20;
-var logsOffset = 0;
 var machine_info = null;
 
 $(document).ready(function() {
-    $('#login_username').css("color", "gray").focus(function() {
+    $('#login_username, #user_admin_username').css("color", "gray").focus(function() {
         if(this.value == 'username') {
             $(this).css('color', 'black').val('');
         }
@@ -25,35 +20,27 @@ $(document).ready(function() {
             $(this).css('color', 'gray').val('username');
         }
     });
-    
-    $('#user_admin_username').css('color', 'gray').focus(function() {
-        if(this.value == 'username') {
-            $(this).css('color', 'black').val('');
-        }
-    }).blur(function() {
-        if(this.value == '') {
-            $(this).css('color', 'gray').val('username');
-        }
-    })
         
     $('#login_form').submit(login);
     $('#user_admin_get_form').submit(get_user_info);
     
-    setInterval(function () {
-        temps_update();
-    }, 1000 * 60);
-    
     tabs = $('#tabs > ul').tabs({cookie: {expires: 7, path: '/', secure: true}, cookieName: 'main'});
     tabs.tabs('disable', 1);
     
-    $(window).resize(function() {
-        temp_plot.setupGrid();
-        temp_plot.draw();
-    });
-    
     refresh_current_user();
     refreshMachines();
-    temps_update();
+    
+    drink.log("Init");
+    for(tab in drink.tabs) {
+        drink.log("... " + tab);
+        drink.tabs[tab].init();
+    }
+    drink.log("Refresh");
+    for(tab in drink.tabs) {
+        drink.log("... " + tab);
+        drink.tabs[tab].refresh();
+    }
+    drink.log("End");
     
     startEventListening();
 });
@@ -152,8 +139,6 @@ function got_current_user() {
             tabs.tabs('disable', 1)
         }
         $.cssRule('.logged_in', 'display:block');
-        
-        initLogs();
     } else {
         $.cssRule('.logged_in', 'display:none');
         $.cssRule('.admin', 'display:none');
@@ -391,91 +376,6 @@ function logout() {
     });
 }
 
-function initLogs() {
-    $('.logprev').click(logsPrev).hide();
-    $('.lognext').click(logsNext);
-    getLogs(logsOffset, logsLimit);
-}
-
-function logsPrev() {
-    offset = logsOffset - logsLimit;
-    getLogs((offset > 0) ? offset : 0, logsLimit);
-    return false;
-}
-
-function logsNext() {
-    getLogs(logsOffset + logsLimit, logsLimit);
-    return false;
-}
-
-function getLogs(offset, count) {
-    $.ajax({
-        dataType: 'json',
-        url: '/drink/logs',
-        data: {offset: offset, limit: count},
-        error: function() {
-            alert('Error getting logs');
-        },
-        success: function(data, status) {
-            if(data.status == 'error') {
-                alert('Error getting logs: ' + data.reason);
-            } else {
-                gotLogs(data.data);
-            }
-        }
-    });
-}
-
-function gotLogs(data) {
-    if(data.start > 0)
-        $('.logprev').show();
-    else
-        $('.logprev').hide();
-    logsOffset = data.start;
-    $('.logoffset').html('' + logsOffset);
-    if(logsLimit == data.length)
-        $('.lognext').show();
-    else
-        $('.lognext').hide();
-
-    logElem = $('#logcontainer').empty();
-    lines = [];
-    today = new Date().toDateString();
-    yesterday = new Date();
-    yesterday.setTime(yesterday.getTime() - 86400000);
-    yesterday = yesterday.toDateString();
-    for(i = 0; i < data.lines.length; i++) {
-        l = data.lines[i];
-        time = new Date();
-        time.setTime(l.time * 1000);
-        timeStr = time.toDateString();
-        if(time.toDateString() == today) {
-            d = $.strftime("Today %H:%M:%S", time, false);
-        } else if(timeStr == yesterday) {
-            d = $.strftime("Yesterday %H:%M:%S", time, false);
-        } else {
-            d = $.strftime("%m/%d/%Y %H:%M:%S", time, false);
-        }
-        if(l.type == 'drop') {
-            error = l.status.search(/error/i) != -1;
-            lines[lines.length] = [
-                '<tr', (error) ? ' class="error"' : '', '><td class="type">Drop</td><td class="time">', d,
-                '</td><td class="username">', l.username, 
-                '</td><td class="info">Dropped ', l.slot, ' from ', l.machine, '</td><td class="status">', l.status, '</td></tr>'
-            ].join('');
-        } else {
-            error = l.reason.search(/error/i) != -1;
-            lines[lines.length] = [
-                '<tr', (error) ? ' class="error"' : '', '><td class="type">Money</td><td class="time">', d,
-                '</td><td class="username">', l.username,
-                '</td><td class="info">Admin: ', l.admin, ' Amount: ', l.amount, ' Direction: ', l.direction,
-                '</td><td class="reason">', l.reason, '</td></tr>'
-            ].join('');
-        }
-    }
-    logElem.append(lines.join(''));
-}
-
 function set_slot_info(machine, num, name, price, avail) {
     $.ajax({
         dataType: 'json',
@@ -519,59 +419,204 @@ function editSlot(editLink, machine, slot) {
     set_slot_info(machine, slot, name, price, available);
 }
 
-function temps_update() {
-    date = new Date();
-    now = Math.floor(date.getTime() / 1000);
-    // fuck javascript
-    // now = now + date.getTimezoneOffset() * 60;
-    // An hour
-    length = 60 * 60 * 4;
-    now = now - length;
-    // Make it so that we'll get the most recent temps, won't be exactly an hour, but will be more up to date
-    getTemps(now, length + 60);
+drink = {}
+
+drink.ajax = function(options, fn) {
+    options.dataType = 'json';
+    options.error = function() {
+        drink.log("Error fetching " + options.url)
+    }
+    options.success = function(data, status) {
+        if(data.status == "error") {
+            drink.log("Error returned from " + options.url + " - " + data.reason);
+        } else {
+            fn.apply(null, [data.data]);
+        }
+    }
+    $.ajax(options);
 }
 
-function getTemps(From, Length) {
-    $.ajax({
-        dataType: 'json',
-        url: '/drink/temperatures',
-        data: {from: From, length: Length},
-        error: function() {
-            alert('Error getting temps');
-        },
-        success: function(data, status) {
-            if(data.status == 'error') {
-                alert('Error getting temps: ' + data.reason);
+drink.log = function(str) {
+    if(window.console && console.log)
+        console.log(str);
+    else
+        alert(str);
+}
+
+drink.time = {
+    tz_offset: (new Date()).getTimezoneOffset() * 60,
+    
+    nowUTC: function() {
+        return Math.floor((new Date()).getTime() / 1000);
+    },
+    
+    fromUTC: function(val) {
+        time = new Date();
+        time.setTime(val * 1000);
+        return time;
+    },
+    
+    today: function() {
+        return new Date().toDateString();
+    },
+    
+    yesterday: function() {
+        yesterday = new Date();
+        yesterday.setTime(yesterday.getTime() - 86400000);
+        return yesterday.toDateString();
+    },
+    
+    prettyDateTime: function(t) {
+        timeStr = t.toDateString();
+        
+        if(timeStr == drink.time.today()) {
+            return $.strftime("Today %H:%M:%S", t, false);
+        } else if(timeStr == drink.time.yesterday()) {
+            return $.strftime("Yesterday %H:%M:%S", t, false);
+        }
+        
+        return $.strftime("%m/%d/%Y %H:%M:%S", t, false);
+    }
+}
+
+drink.tabs = {}
+drink.tabs.tempGraph = new (function() {
+    var Length = 60 * 60 * 4; // 4 hours of data
+    var MaxBreak = 120; // Break the graph if there is more than 2 minutes between data points
+    var plot = null;
+    var plot_data = null;
+    
+    var tempObj = this;
+    
+    var gotTemps = function(data) {
+        plot_data = [];
+        
+        /* Convert to local time */
+        data.start = data.start - drink.time.tz_offset;
+        data.length = data.length - drink.time.tz_offset;
+        for(m in data.machines)
+            for(i in data.machines[m])
+                data.machines[m][i][0] = data.machines[m][i][0] - drink.time.tz_offset;
+        
+        max_time = data.start + data.length - 60;
+
+        for(m in data.machines) {
+            prev = data.machines[m][0][0];
+            temps = {data: []};
+            for(i in data.machines[m]) {
+                t = data.machines[m][i];
+                
+                if(prev + MaxBreak < t[0])
+                    temps.data.push([(prev + MaxBreak) * 1000, null]);
+                
+                if(max_time < t[0])
+                    max_time = t[0];
+                
+                prev = t[0];
+                temps.data.push([t[0] * 1000, t[1]]);
+            }
+            
+            if(m == 'littledrink')
+                temps.label = "Little Drink";
+            else if(m == 'bigdrink')
+                temps.label = "Big Drink";
+            else
+                temps.label = m;
+
+            plot_data.push(temps);
+        }
+        
+        plot = $.plot($('#temperature_plot'), plot_data,
+            {xaxis: {mode: "time", min: data.start * 1000, max: max_time * 1000}});
+    }
+    
+    var getTemps = function(From, Length) {
+        drink.ajax({
+            url: '/drink/temperatures',
+            data: {from: From, length: Length}
+        }, gotTemps);
+    }
+    
+    this.refresh = function() {
+        getTemps(drink.time.nowUTC() - Length, Length + 60);
+    }
+    
+    this.init = function() {
+
+    }
+    
+    return this;
+})();
+
+drink.tabs.logs = new (function () {
+    var offset = 0;
+    var limit = 20;
+    
+    var logObj = this;
+    
+    var gotLogs = function(data) {
+        if(data.start > 0)
+            $('.logprev').show();
+        else
+            $('.logprev').hide();
+        offset = data.start;
+        $('.logoffset').html('' + offset);
+        
+        if(limit == data.length)
+            $('.lognext').show();
+        else
+            $('.lognext').hide();
+
+        logElem = $('#logcontainer').empty();
+        lines = [];
+
+        for(i = 0; i < data.lines.length; i++) {
+            l = data.lines[i];
+            
+            time = drink.time.fromUTC(l.time);
+            d = drink.time.prettyDateTime(time);
+            
+            if(l.type == 'drop') {
+                error = l.status.search(/error/i) != -1;
+                lines[lines.length] = [
+                    '<tr', (error) ? ' class="error"' : '', '><td class="type">Drop</td><td class="time">', d,
+                    '</td><td class="username">', l.username, 
+                    '</td><td class="info">Dropped ', l.slot, ' from ', l.machine, '</td><td class="status">', l.status, '</td></tr>'
+                ].join('');
             } else {
-                bigdrink_temps.data = [];
-                littledrink_temps.data = [];
-                max_time = From + Length - 60;
-                last = data.data.machines['bigdrink'][0][0];
-                tz_offset = (new Date()).getTimezoneOffset() * 60 * 1000;
-                for(i in data.data.machines['bigdrink']) {
-                    t = data.data.machines['bigdrink'][i];
-                    if(last + 100 < t[0]) {
-                        bigdrink_temps.data.push([(last + 100) * 1000, null]);
-                    }
-                    last = t[0];
-                    if(t[0] > max_time)
-                        max_time = t[0];
-                    bigdrink_temps.data.push([t[0] * 1000 - tz_offset, t[1]]);
-                }
-                last = data.data.machines['littledrink'][0][0]
-                for(i in data.data.machines['littledrink']) {
-                    t = data.data.machines['littledrink'][i];
-                    if(last + 240 < t[0]) {
-                        littledrink_temps.data.push([(last + 100) * 1000, null]);
-                    }
-                    last = t[0];
-                    if(t[0] > max_time)
-                        max_time = t[0];
-                    littledrink_temps.data.push([t[0] * 1000 - tz_offset, t[1]]);
-                }
-                temp_plot = $.plot($('#temperature_plot'), [bigdrink_temps, littledrink_temps],
-                    {xaxis: {mode: "time", min: From * 1000 - tz_offset, max: max_time * 1000 - tz_offset}});
+                error = l.reason.search(/error/i) != -1;
+                lines[lines.length] = [
+                    '<tr', (error) ? ' class="error"' : '', '><td class="type">Money</td><td class="time">', d,
+                    '</td><td class="username">', l.username,
+                    '</td><td class="info">Admin: ', l.admin, ' Amount: ', l.amount, ' Direction: ', l.direction,
+                    '</td><td class="reason">', l.reason, '</td></tr>'
+                ].join('');
             }
         }
-    })
-}
+        logElem.append(lines.join(''));
+    }
+
+    this.refresh = function() {
+        drink.ajax({
+            url: '/drink/logs',
+            data: {offset: offset, limit: limit}
+        }, gotLogs);
+    }
+    
+    this.init = function() {
+        $('.logprev').click(function() {
+            offset -= limit;
+            offset = (offset > 0) ? offset : 0;
+            logObj.refresh();
+            return false;
+        }).hide();
+        
+        $('.lognext').click(function() {
+            offset += limit;
+            logObj.refresh();
+            return false;
+        });
+    }
+    
+    return this;
+})();

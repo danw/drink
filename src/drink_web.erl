@@ -190,13 +190,15 @@ out(A) ->
                 "logs" ->
                     case {yaws_api:queryvar(A, "offset"), yaws_api:queryvar(A, "limit")} of
                         {{ok, OffsetStr}, {ok, LimitStr}} ->
-                            case {string:to_integer(OffsetStr), string:to_integer(LimitStr)} of
-                                {{error, _Reason}, _} ->
+                            case {Session#ses.user, string:to_integer(OffsetStr), string:to_integer(LimitStr)} of
+                                {nil, _, _} ->
+                                    error(permission_denied);
+                                {_, {error, _Reason}, _} ->
                                     error(invalid_args);
-                                {_, {error, _Reason}} ->
+                                {_, _, {error, _Reason}} ->
                                     error(invalid_args);
-                                {{Offset, _Rest}, {Limit, _Rest}} when Offset >= 0, Limit =< 100 ->
-                                    case drink_mnesia:get_logs(Session#ses.user, Offset, Limit) of
+                                {User, {Offset, _Rest}, {Limit, _Rest}} when Offset >= 0, Limit =< 100 ->
+                                    case drink_mnesia:get_logs(User, Offset, Limit) of
                                         {ok, Data} ->
                                             ok(format_logs(Offset, Limit, Data));
                                         {error, Reason} ->

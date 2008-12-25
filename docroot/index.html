@@ -16,17 +16,19 @@
 	<link rel="stylesheet" href="drink.css" type="text/css" media="screen" title="" charset="utf-8">
 </head>
 <body>
-	<div class="logging_in">
-		Logging in...
-	</div>
-	<div class="logged_out">
-		<form id="login_form">
-			<input type="text" id="login_username" value="username"><input type="password" id="login_password"> <input type="submit" value="Login &rarr;">
-		</form>
-	</div>
-	<div class="logged_in">
-		<span id="balance">Balance: <span id="currentuser_balance"></span> credits</span>
-		<p>Logged in as: <span id="currentuser"></span><span class="admin"> (admin)</span> <a href="#" onclick="logout(); return false;">Logout</a></p>
+	<div id="header">
+		<div id="logging_in">
+			Logging in...
+		</div>
+		<div id="user_login">
+			<form id="login_form">
+				<input type="text" id="login_username" value="username"><input type="password" id="login_password"> <input type="submit" value="Login &rarr;">
+			</form>
+		</div>
+		<div id="user_info">
+			<span id="balance">Balance: <span id="currentuser_balance"></span> credits</span>
+			<p>Logged in as: <span id="currentuser"></span><span id="currentuser_admin"> (admin)</span> <a href="#">Logout</a></p>
+		</div>
 	</div>
 	
 	<div id="tabs">

@@ -1,13 +1,10 @@
-.logged_in {
-    display: none;
+#header {
+    height: 3em;
+    background-color: yellow;
 }
 
-.logging_in {
-    display: none;
-}
-
-.admin {
-    display: none;
+#header p {
+    margin: 0;
 }
 
 #balance {

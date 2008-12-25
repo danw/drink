@@ -8,7 +8,6 @@
 var current_user = false;
 var current_edit_user = false;
 var tabs = null;
-var machine_info = null;
 
 $(document).ready(function() {
     $('#login_username, #user_admin_username').css("color", "gray").focus(function() {
@@ -28,7 +27,6 @@ $(document).ready(function() {
     tabs.tabs('disable', 1);
     
     refresh_current_user();
-    refreshMachines();
     
     drink.log("Init");
     for(tab in drink.tabs) {
@@ -147,40 +145,6 @@ function got_current_user() {
         tabs.tabs('disable', 1);
         $.cssRule('.logged_out', 'display:block');
     }
-}
-
-function drop(machine, slot) {
-    delay = prompt("Delay? Enter for immediate");
-    if(delay == '')
-        delay = 0;
-    else
-        delay = parseInt(delay);
-    if(delay == NaN) {
-        alert("Invalid Delay");
-        return;
-    }
-    setTimeout(function() { dropImpl(machine, slot); }, delay * 1000);
-}
-
-function dropImpl(machine, slot) {
-    $.ajax({
-        data: {machine: machine, slot: slot, delay: 0},
-        dataType: 'json',
-        type: 'POST',
-        url: '/drink/drop',
-        error: function() {
-            alert('Failure dropping :(');
-        },
-        success: function(data, status) {
-            if(data.status == 'error') {
-                alert('Failure dropping :( Reason: ' + data.reason);
-            } else {
-                alert('Dropping... RUN!');
-                refreshMachines();
-                refresh_current_user();
-            }
-        }
-    });
 }
 
 function get_user_info() {
@@ -307,56 +271,6 @@ function mod_user(username, attr, value, reason) {
     });
 }
 
-function pretty_available(count) {
-    if(count == 0) {
-        return 'Out';
-    } else if(count == 1) {
-        return 'Available';
-    } else {
-        return count;
-    }
-}
-
-function machine_html(name, machine) {
-    res = ['<h3>', name, '</h3>', '<table><thead><tr><th>Slot Num</th><th>Name</th><th>Price</th><th>Available</th><th>Actions</th></tr></thead><tbody>'];
-    for(slotnum in machine.slots) {
-        droppable = (machine.slots[slotnum].available && machine.connected && current_user);
-        if(current_user)
-            droppable = (droppable && (current_user.credits >= machine.slots[slotnum].price));
-        res[res.length] = ['<tr><td class="slotnum">', slotnum, '</td><td class="slotname">',
-                machine.slots[slotnum].name, '</td><td class="slotprice">',
-                machine.slots[slotnum].price, '</td><td class="slotavail">',
-                pretty_available(machine.slots[slotnum].available), '</td><td class="slotaction">',
-                droppable ? ['<a href="#" onclick="drop(\'', name, '\', ', slotnum, '); return false;">Drop</a> '].join('') : '',
-                '<a href="#" onclick="editSlot(this, \'', name, '\', ', slotnum, '); return false" class="admin">Edit</a>',
-                '</td></tr>'].join('');
-    }
-    res[res.length] = '</tbody></table>';
-    return res.join('');
-}
-
-function refreshMachines() {
-    $.ajax({
-       dataType: 'json',
-       url: '/drink/machines',
-       error: function() {
-           alert('Error getting machine stats');
-       },
-       success: function(data, status) {
-           if(data.status == 'error') {
-               alert('Error getting machine stats');
-           } else {
-               machine_info = data.data;
-               machinelist = $('#machines').empty();
-               for(machine in data.data) {
-                   machinelist.append(['<li>', machine_html(machine, data.data[machine]), '</li>'].join(''));
-               }
-               got_current_user();
-           }
-       }
-    });
-}
-
 function logout() {
     $.ajax({
         dataType: 'json',
@@ -374,49 +288,6 @@ function logout() {
             }
         }
     });
-}
-
-function set_slot_info(machine, num, name, price, avail) {
-    $.ajax({
-        dataType: 'json',
-        type: 'POST',
-        url: '/drink/setslot',
-        data: {machine: machine, slot: num, name: name, price: price, avail: avail},
-        error: function() {
-            alert('Error setting slot info');
-        },
-        success: function(data, status) {
-            if(data.status == 'error') {
-                alert('Error setting slot info: ' + data.reason);
-            } else {
-                machine_info = data.data;
-                machinelist = $('#machines').empty();
-                for(machine in data.data) {
-                    machinelist.append(['<li>', machine_html(machine, data.data[machine]), '</li>'].join(''));
-                }
-                got_current_user();
-            }
-        }
-    });
-}
-
-function editSlot(editLink, machine, slot) {
-    name = prompt("Name", machine_info[machine].slots[slot].name);
-    if(name == null || name == '')
-        return;
-    price = prompt("Price", machine_info[machine].slots[slot].price);
-    if(price == null || price == '')
-        return;
-    price = new Number(price);
-    if(price == NaN || price < 0)
-        return;
-    available = prompt("Available", machine_info[machine].slots[slot].available);
-    if(available == null || available == '')
-        return;
-    available = new Number(available);
-    if(available == NaN || available < 0)
-        return;
-    set_slot_info(machine, slot, name, price, available);
 }
 
 drink = {}
@@ -439,8 +310,8 @@ drink.ajax = function(options, fn) {
 drink.log = function(str) {
     if(window.console && console.log)
         console.log(str);
-    else
-        alert(str);
+//    else
+//        alert(str);
 }
 
 drink.time = {
@@ -616,6 +487,138 @@ drink.tabs.logs = new (function () {
             logObj.refresh();
             return false;
         });
+    }
+    
+    return this;
+})();
+
+drink.tabs.machines = new (function() {
+    var machine_info = false;
+    
+    var machineObj = this;
+    
+    var pretty_available = function(count) {
+        if(count == 0) {
+            return 'Out';
+        } else if(count == 1) {
+            return 'Available';
+        } else {
+            return count;
+        }
+    }
+
+    var machine_dom = function(name, machine) {
+        m = $('<h3></h3><table><thead><tr><th>Slot Num</th><th>Name</th><th>Price</th><th>Available</th><th>Actions</th></tr></thead><tbody></tbody></table>');
+        m.filter('h3').text(name);
+        
+        slots = m.find('tbody');
+        for(slotnum in machine.slots) {
+            slot = machine.slots[slotnum];
+            
+            droppable = (slot.available && machine.connected && current_user);
+            if(current_user)
+                droppable = (droppable && (current_user.credits >= slot.price));
+
+            s = $('<tr><td class="slotnum"></td><td class="slotname"></td><td class="slotprice"></td><td class="slotavail"></td><td class="slotactions"></td></tr>').appendTo(slots);
+            
+            s.data('machine', name);
+            s.data('slotnum', slotnum);
+            
+            s.find('.slotnum').text(slotnum);
+            s.find('.slotname').text(slot.name);
+            s.find('.slotprice').text(slot.price);
+            s.find('.slotavail').text(pretty_available(slot.available));
+            actions = s.find('.slotactions');
+            
+            $('<a class="slotaction_drop" href="#"> Drop </a>').appendTo(actions).click(function() {
+                slot = $(this).parents('tr').eq(0);
+                dropDelayAsk(slot.data('machine'), slot.data('slotnum'));
+                return false;
+            });
+            $('<a class="slotaction_edit" href="#"> Edit </a>').appendTo(actions).click(function() {
+                slot = $(this).parents('tr').eq(0);
+                editSlot(slot.data('machine'), slot.data('slotnum'));
+                return false;
+            });
+        }
+
+        return m;
+    }
+    
+    var gotMachines = function(data) {
+        machine_info = data;
+        machinelist = $('#machines').empty();
+        for(machine in data) {
+            machinelist.append(machine_dom(machine, data[machine]).wrap('<li></li>'));
+        }
+    }
+    
+    var set_slot_info = function(machine, num, name, price, avail) {
+        drink.ajax({
+            url: '/drink/setslot',
+            type: 'POST',
+            data: { machine: machine, slot: num, name: name, price: price, avail: avail }
+        }, gotMachines);
+    }
+
+    var editSlot = function(machine, slot) {
+        name = prompt("Name", machine_info[machine].slots[slot].name);
+        if(name == null || name == '')
+            return;
+        price = prompt("Price", machine_info[machine].slots[slot].price);
+        if(price == null || price == '')
+            return;
+        price = new Number(price);
+        if(price == NaN || price < 0)
+            return;
+        available = prompt("Available", machine_info[machine].slots[slot].available);
+        if(available == null || available == '')
+            return;
+        available = new Number(available);
+        if(available == NaN || available < 0)
+            return;
+        set_slot_info(machine, slot, name, price, available);
+    }
+
+    var drop = function(machine, slot) {
+        delay = 0;
+        if(arguments.length == 3)
+            deley = arguments[2];
+        
+        if(delay > 0) {
+            setTimeout(function() { drop(machine, slot) }, delay * 1000);
+            return;
+        }
+        
+        drink.ajax({
+            url: '/drink/drop',
+            data: { machine: machine, slot: slot, delay: 0 }
+        }, function() {
+            alert('Dropping... RUN!');
+        });
+    }
+    
+    var dropDelayAsk = function(machine, slot) {
+        delay = prompt("Delay? Enter for immediate");
+        if(delay == '')
+            delay = 0;
+        else
+            delay = parseInt(delay);
+        if(delay == NaN) {
+            alert("Invalid Delay");
+            return;
+        }
+        drop(machine, slot, delay);
+    }
+    
+    this.refresh = function() {
+        drink.ajax({
+            url: '/drink/machines'
+        }, gotMachines);
+    }
+    
+    this.init = function() {
+        
     }
     
     return this;

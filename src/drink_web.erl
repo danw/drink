@@ -142,6 +142,8 @@ out(A) ->
                         _ ->
                             error(invalid_args)
                     end;
+                "temperatures" ->
+                    error(wrong_method);
                 "logs" ->
                     error(wrong_method);
                 "events" ->
@@ -350,13 +352,13 @@ session_start(A) ->
                 {ok, Sess} ->
                     {ok, Val, Sess, ok};
                 _Else ->
-                    error_logger:error_msg("No session, creating new cookie"),
+                    % error_logger:error_msg("No session, creating new cookie"),
                     Session = #ses{},
                     Cookie = yaws_api:new_cookie_session(Session),
                     {ok, Cookie, Session, yaws_api:setcookie("ssid", Cookie, "/")}
             end;
         [] ->
-            error_logger:error_msg("No cookie, creating new session"),
+            % error_logger:error_msg("No cookie, creating new session"),
             Session = #ses{},
             Cookie = yaws_api:new_cookie_session(Session),
             {ok, Cookie, Session, yaws_api:setcookie("ssid", Cookie, "/")}

@@ -73,8 +73,7 @@ tbody tr td:first-child {
 }
 
 .ui-tabs-hide {
-    position: absolute;
-    left: -10000px;
+    display: none;
 }
 
 .ui-tabs-nav {
@@ -129,4 +128,9 @@ tbody tr td:first-child {
 
 .logprev, .lognext {
     text-decoration: none;
+}
+
+.slotaction_edit, .slotaction_drop {
+    cursor: pointer;
+    color: darkblue;
 }

@@ -31,23 +31,10 @@ $(document).ready(function() {
     });
         
     $('#login_form').submit(login);
-    
-    drink.tab_elem = $('#tabs > ul').tabs({cookie: {expires: 7, path: '/', secure: true}, cookieName: 'main'});
-    
-    got_current_user();
+        
     refresh_current_user();
     
-    drink.log("Init");
-    for(var tab in drink.tabs) {
-        drink.log("... " + tab);
-        drink.tabs[tab].init();
-    }
-    drink.log("Refresh");
-    for(var tab in drink.tabs) {
-        drink.log("... " + tab);
-        drink.tabs[tab].refresh();
-    }
-    drink.log("End");
+    drink.tab.init();
     
     startEventListening();
 });
@@ -142,23 +129,7 @@ function got_current_user() {
         $('.logged_out').show();
     }
     
-    drink.tab_elem.data('disabled.tabs', []);
-    for(var tab in drink.tabs) {
-        t = drink.tabs[tab];
-        
-        if((t.user_required && current_user == false) || (t.admin_required && (current_user == false || !current_user.admin))) {
-            idx = drink.tab_elem.tabs('idx', tab);
-            if(idx == -1)
-                drink.log("Broken! can't find tab");
-            
-            if(drink.tab_elem.data('selected.tabs') == idx) {
-                // TODO: figure out first legit tab to select
-                drink.tab_elem.tabs('select', 0);
-            }
-            
-            drink.tab_elem.tabs('disable', idx );
-        }
-    }
+    drink.tab.update_user();
 }
 
 function logout() {
@@ -212,7 +183,7 @@ drink.time = {
     },
     
     fromUTC: function(val) {
-        time = new Date();
+        var time = new Date();
         time.setTime(val * 1000);
         return time;
     },
@@ -222,13 +193,13 @@ drink.time = {
     },
     
     yesterday: function() {
-        yesterday = new Date();
+        var yesterday = new Date();
         yesterday.setTime(yesterday.getTime() - 86400000);
         return yesterday.toDateString();
     },
     
     prettyDateTime: function(t) {
-        timeStr = t.toDateString();
+        var timeStr = t.toDateString();
         
         if(timeStr == drink.time.today()) {
             return $.strftime("Today %H:%M:%S", t, false);
@@ -240,7 +211,48 @@ drink.time = {
     }
 }
 
-drink.tab_elem = null;
+drink.tab = new (function() {
+    var tab_elem;
+    
+    this.init = function() {
+        tab_elem = $('#tabs > ul').tabs({cookie: {expires: 7, path: '/', secure: true}, cookieName: 'main'});
+        
+        drink.log("Init Tabs");
+        for(var tab in drink.tabs) {
+            drink.log("... " + tab);
+            drink.tabs[tab].init();
+        }
+        drink.log("Refresh Tabs");
+        for(var tab in drink.tabs) {
+            drink.log("... " + tab);
+            drink.tabs[tab].refresh();
+        }
+        drink.log("End Tabs");
+    }
+    
+    this.update_user = function() {
+        tab_elem.data('disabled.tabs', []);
+        for(var tab in drink.tabs) {
+            var t = drink.tabs[tab];
+
+            if((t.user_required && current_user == false) || (t.admin_required && (current_user == false || !current_user.admin))) {
+                idx = tab_elem.tabs('idx', tab);
+                if(idx == -1)
+                    drink.log("Broken! can't find tab");
+
+                if(tab_elem.data('selected.tabs') == idx) {
+                    // TODO: figure out first legit tab to select
+                    tab_elem.tabs('select', 0);
+                }
+
+                tab_elem.tabs('disable', idx );
+            }
+        }
+    }
+    
+    return this;
+})();
+
 drink.tabs = {}
 
 drink.tabs.temperatures = new (function() {
@@ -257,17 +269,17 @@ drink.tabs.temperatures = new (function() {
         /* Convert to local time */
         data.start = data.start - drink.time.tz_offset;
         data.length = data.length - drink.time.tz_offset;
-        for(m in data.machines)
-            for(i in data.machines[m])
+        for(var m in data.machines)
+            for(var i in data.machines[m])
                 data.machines[m][i][0] = data.machines[m][i][0] - drink.time.tz_offset;
         
-        max_time = data.start + data.length - 60;
+        var max_time = data.start + data.length - 60;
 
-        for(m in data.machines) {
-            prev = data.machines[m][0][0];
-            temps = {data: []};
-            for(i in data.machines[m]) {
-                t = data.machines[m][i];
+        for(var m in data.machines) {
+            var prev = data.machines[m][0][0];
+            var temps = {data: []};
+            for(var i in data.machines[m]) {
+                var t = data.machines[m][i];
                 
                 if(prev + MaxBreak < t[0])
                     temps.data.push([(prev + MaxBreak) * 1000, null]);
@@ -333,24 +345,24 @@ drink.tabs.logs = new (function () {
         else
             $('.lognext').hide();
 
-        logElem = $('#logcontainer').empty();
-        lines = [];
+        var logElem = $('#logcontainer').empty();
+        var lines = [];
 
         for(var i = 0; i < data.lines.length; i++) {
-            l = data.lines[i];
+            var l = data.lines[i];
             
-            time = drink.time.fromUTC(l.time);
-            d = drink.time.prettyDateTime(time);
+            var time = drink.time.fromUTC(l.time);
+            var d = drink.time.prettyDateTime(time);
             
             if(l.type == 'drop') {
-                error = l.status.search(/error/i) != -1;
+                var error = l.status.search(/error/i) != -1;
                 lines[lines.length] = [
                     '<tr', (error) ? ' class="error"' : '', '><td class="type">Drop</td><td class="time">', d,
                     '</td><td class="username">', l.username, 
                     '</td><td class="info">Dropped ', l.slot, ' from ', l.machine, '</td><td class="status">', l.status, '</td></tr>'
                 ].join('');
             } else {
-                error = l.reason.search(/error/i) != -1;
+                var error = l.reason.search(/error/i) != -1;
                 lines[lines.length] = [
                     '<tr', (error) ? ' class="error"' : '', '><td class="type">Money</td><td class="time">', d,
                     '</td><td class="username">', l.username,
@@ -409,15 +421,15 @@ drink.tabs.drink_machines = new (function() {
         var m = $('<h3></h3><table><thead><tr><th>Slot Num</th><th>Name</th><th>Price</th><th>Available</th><th>Actions</th></tr></thead><tbody></tbody></table>');
         m.filter('h3').text(name);
         
-        slots = m.find('tbody');
-        for(slotnum in machine.slots) {
-            slot = machine.slots[slotnum];
+        var slots = m.find('tbody');
+        for(var slotnum in machine.slots) {
+            var slot = machine.slots[slotnum];
             
             var droppable = (slot.available && machine.connected && current_user);
             if(current_user)
                 droppable = (droppable && (current_user.credits >= slot.price));
 
-            s = $('<tr><td class="slotnum"></td><td class="slotname"></td><td class="slotprice"></td><td class="slotavail"></td><td class="slotactions"></td></tr>').appendTo(slots);
+            var s = $('<tr><td class="slotnum"></td><td class="slotname"></td><td class="slotprice"></td><td class="slotavail"></td><td class="slotactions"></td></tr>').appendTo(slots);
             
             s.data('machine', name);
             s.data('slotnum', slotnum);
@@ -428,12 +440,12 @@ drink.tabs.drink_machines = new (function() {
             s.find('.slotavail').text(pretty_available(slot.available));
             var actions = s.find('.slotactions');
             
-            $('<a class="slotaction_drop" href="#"> Drop </a>').appendTo(actions).click(function() {
+            $('<a class="slotaction_drop"> Drop </a>').appendTo(actions).click(function() {
                 slot = $(this).parents('tr').eq(0);
                 dropDelayAsk(slot.data('machine'), slot.data('slotnum'));
                 return false;
             });
-            $('<a class="slotaction_edit" href="#"> Edit </a>').appendTo(actions).click(function() {
+            $('<a class="slotaction_edit"> Edit </a>').appendTo(actions).click(function() {
                 slot = $(this).parents('tr').eq(0);
                 editSlot(slot.data('machine'), slot.data('slotnum'));
                 return false;
@@ -445,8 +457,8 @@ drink.tabs.drink_machines = new (function() {
     
     var gotMachines = function(data) {
         machine_info = data;
-        machinelist = $('#machines').empty();
-        for(machine in data) {
+        var machinelist = $('#machines').empty();
+        for(var machine in data) {
             machinelist.append(machine_dom(machine, data[machine]).wrap('<li></li>'));
         }
     }
@@ -460,26 +472,26 @@ drink.tabs.drink_machines = new (function() {
     }
 
     var editSlot = function(machine, slot) {
-        name = prompt("Name", machine_info[machine].slots[slot].name);
+        var name = prompt("Name", machine_info[machine].slots[slot].name);
         if(name == null || name == '')
             return;
-        price = prompt("Price", machine_info[machine].slots[slot].price);
+        var price = prompt("Price", machine_info[machine].slots[slot].price);
         if(price == null || price == '')
             return;
-        price = new Number(price);
+        var price = new Number(price);
         if(price == NaN || price < 0)
             return;
-        available = prompt("Available", machine_info[machine].slots[slot].available);
+        var available = prompt("Available", machine_info[machine].slots[slot].available);
         if(available == null || available == '')
             return;
-        available = new Number(available);
+        var available = new Number(available);
         if(available == NaN || available < 0)
             return;
         set_slot_info(machine, slot, name, price, available);
     }
 
     var drop = function(machine, slot) {
-        delay = 0;
+        var delay = 0;
         if(arguments.length == 3)
             deley = arguments[2];
         
@@ -497,7 +509,7 @@ drink.tabs.drink_machines = new (function() {
     }
     
     var dropDelayAsk = function(machine, slot) {
-        delay = prompt("Delay? Enter for immediate");
+        var delay = prompt("Delay? Enter for immediate");
         if(delay == '')
             delay = 0;
         else
@@ -529,7 +541,7 @@ drink.tabs.user_admin = new (function() {
     var current_edit_user = null;
     
     var get_user_info = function() {
-        username = $('#user_admin_username').val();
+        var username = $('#user_admin_username').val();
         if(username == 'username' || username == '')
             return false;
         
@@ -552,7 +564,7 @@ drink.tabs.user_admin = new (function() {
         $('#user_admin_user_username').text(current_edit_user.username);
         $('#user_admin_user_credits').text(current_edit_user.credits);
         $('#user_admin_user_admin').text(current_edit_user.admin);
-        ibuttons = $('#user_admin_user_ibuttons').empty();
+        var ibuttons = $('#user_admin_user_ibuttons').empty();
         $.each(current_edit_user.ibuttons, function(n, ibutton) {
             var i = $('<li><span class="ibutton"></span> <a href="#">X</a></li>').appendTo(ibuttons).data("ibutton", ibutton);
             i.find('.ibutton').text(ibutton);
@@ -565,7 +577,7 @@ drink.tabs.user_admin = new (function() {
     var addiButton = function() {
         if(current_edit_user == null)
             return;
-        ibutton = prompt("Enter iButton:");
+        var ibutton = prompt("Enter iButton:");
         if(ibutton == '' || ibutton == null)
             return;
         mod_user(current_edit_user.username, "addibutton", ibutton, '');
@@ -577,7 +589,7 @@ drink.tabs.user_admin = new (function() {
         if(current_edit_user == null)
             return;
         
-        ibutton = $(this).parents('li').eq(0).data("ibutton");
+        var ibutton = $(this).parents('li').eq(0).data("ibutton");
         if(confirm("Are you sure you want to delete: " + ibutton))
             mod_user(current_edit_user.username, "delibutton", ibutton, '');
         
@@ -585,8 +597,8 @@ drink.tabs.user_admin = new (function() {
     }
 
     var modcredits_reason_change = function() {
-        reason = $('#user_admin_mod_reason');
-        credits = $('#user_admin_mod_credits');
+        var reason = $('#user_admin_mod_reason');
+        var credits = $('#user_admin_mod_credits');
         if(reason.val() == 'fix_amount' && credits.val() == '') {
             credits.val(current_edit_user.credits);
         }
@@ -596,12 +608,12 @@ drink.tabs.user_admin = new (function() {
     }
 
     var modcredits = function() {
-        diff = parseInt($('#user_admin_mod_credits').val());
+        var diff = parseInt($('#user_admin_mod_credits').val());
         if(diff == NaN) {
             alert("Not a Number!");
             return;
         }
-        reason = $('#user_admin_mod_reason').val();
+        var reason = $('#user_admin_mod_reason').val();
         if(reason == 'other') {
             while(reason == 'other' || reason == '')
                 reason = prompt("Please enter reason: (lower case with underscores)");

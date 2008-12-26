@@ -108,26 +108,29 @@ out(A) ->
                           yaws_api:postvar(A, "slot"),
                           yaws_api:postvar(A, "name"),
                           yaws_api:postvar(A, "price"),
-                          yaws_api:postvar(A, "avail")} of
-                        {nil, _, _, _, _, _} ->
+                          yaws_api:postvar(A, "available"),
+                          yaws_api:postvar(A, "disabled")} of
+                        {nil, _, _, _, _, _, _} ->
                             error(permission_denied);
-                        {User, {ok, Machine}, {ok, SlotStr}, {ok, Name}, {ok, PriceStr}, {ok, AvailStr}} ->
+                        {User, {ok, Machine}, {ok, SlotStr}, {ok, Name}, {ok, PriceStr}, {ok, AvailStr}, {ok, DisabledStr}} ->
                             case {string:to_integer(SlotStr),
                                   string:to_integer(PriceStr),
-                                  string:to_integer(AvailStr)} of
-                                {{error, _}, _, _} ->
+                                  string:to_integer(AvailStr),
+                                  list_to_atom(DisabledStr)} of
+                                {{error, _}, _, _, _} ->
                                     error(invalid_args);
-                                {_, {error, _}, _} ->
+                                {_, {error, _}, _, _} ->
                                     error(invalid_args);
-                                {_, _, {error, _}} ->
+                                {_, _, {error, _}, _} ->
                                     error(invalid_args);
-                                {{Slot, _}, {Price, _}, {Avail, _}} ->
+                                {{Slot, _}, {Price, _}, {Avail, _}, Disabled} when is_boolean(Disabled) ->
                                     case drink_machine:set_slot_info(User, #slot{
                                         machine = list_to_atom(Machine),
                                         num = Slot,
                                         name = Name,
                                         price = Price,
-                                        avail = Avail
+                                        avail = Avail,
+                                        disabled = Disabled
                                     }) of
                                         ok ->
                                             ok({struct, machines(drink_machines_sup:machines())});
@@ -292,7 +295,8 @@ slot_info(Slot) ->
     {struct, [
         {name, Slot#slot.name},
         {price, Slot#slot.price},
-        {available, Slot#slot.avail}
+        {available, Slot#slot.avail},
+        {disabled, Slot#slot.disabled}
     ]}.
 
 userref_to_struct(UserRef) ->

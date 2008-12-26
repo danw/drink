@@ -14,6 +14,10 @@
     padding-right: 0.5em;
 }
 
+#drink_machines tr.disabled {
+    background-color: lightgray;
+}
+
 td, th {
     padding: 2px 6px;
     border-style: solid;
@@ -127,7 +131,7 @@ tbody tr td:first-child {
     text-decoration: none;
 }
 
-.slotaction_edit, .slotaction_drop {
+.slotaction_edit, .slotaction_drop, .slotaction_disable {
     cursor: pointer;
     color: darkblue;
 }

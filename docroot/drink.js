@@ -526,6 +526,8 @@ drink.tabs.drink_machines = new (function() {
 
             var s = $('<tr><td class="slotnum"></td><td class="slotname"></td><td class="slotprice"></td><td class="slotavail"></td><td class="slotactions"></td></tr>').appendTo(slots);
             
+            if(slot.disabled)
+                s.addClass('disabled');
             s.data('machine', name);
             s.data('slotnum', slotnum);
             
@@ -545,6 +547,11 @@ drink.tabs.drink_machines = new (function() {
                 editSlot(slot.data('machine'), slot.data('slotnum'));
                 return false;
             });
+            $('<a class="slotaction_disable"></a>').text(slot.disabled ? ' Enable ' : ' Disable ').appendTo(actions).click(function() {
+                slot = $(this).parents('tr').eq(0);
+                toggleDisabled(slot.data('machine'), slot.data('slotnum'));
+                return false;
+            });
         }
 
         return m;
@@ -562,37 +569,43 @@ drink.tabs.drink_machines = new (function() {
         self.user_update(drink.user.current());
     }
     
-    var set_slot_info = function(machine, num, name, price, avail) {
+    var set_slot_info = function(machine, num, name, price, available, disabled) {
         drink.ajax({
             url: '/drink/setslot',
             type: 'POST',
-            data: { machine: machine, slot: num, name: name, price: price, avail: avail }
+            data: { machine: machine, slot: num, name: name, price: price, available: available, disabled: disabled }
         }, gotMachines);
     }
 
-    var editSlot = function(machine, slot) {
-        var name = prompt("Name", machine_info[machine].slots[slot].name);
+    var editSlot = function(machine, slotnum) {
+        var slot = machine_info[machine].slots[slotnum];
+        var name = prompt("Name", slot.name);
         if(name == null || name == '')
             return;
-        var price = prompt("Price", machine_info[machine].slots[slot].price);
+        var price = prompt("Price", slot.price);
         if(price == null || price == '')
             return;
         var price = new Number(price);
         if(price == NaN || price < 0)
             return;
-        var available = prompt("Available", machine_info[machine].slots[slot].available);
+        var available = prompt("Available", slot.available);
         if(available == null || available == '')
             return;
         var available = new Number(available);
         if(available == NaN || available < 0)
             return;
-        set_slot_info(machine, slot, name, price, available);
+        set_slot_info(machine, slot, name, price, available, slot.disabled);
+    }
+    
+    var toggleDisabled = function(machine, slotnum) {
+        var slot = machine_info[machine].slots[slotnum];
+        set_slot_info(machine, slotnum, slot.name, slot.price, slot.available, !slot.disabled);
     }
 
     var drop = function(machine, slot) {
         var delay = 0;
         if(arguments.length == 3)
-            deley = arguments[2];
+            delay = arguments[2];
         
         if(delay > 0) {
             setTimeout(function() { drop(machine, slot) }, delay * 1000);
@@ -630,7 +643,7 @@ drink.tabs.drink_machines = new (function() {
     
     this.user_update = function(userinfo) {
         var drops = $('#drink_machines .slotaction_drop');
-        var edits = $('#drink_machines .slotaction_edit');
+        var edits = $('#drink_machines .slotaction_edit, #drink_machines .slotaction_disable');
         
         if(userinfo == false) {
             drops.hide();
@@ -645,6 +658,7 @@ drink.tabs.drink_machines = new (function() {
                 var droppable = true;
                 if(!machine.connected) droppable = false;
                 if(!slot.available) droppable = false;
+                if(slot.disabled) droppable = false;
                 if(userinfo.credits < slot.price) droppable = false;
                 
                 if(droppable)

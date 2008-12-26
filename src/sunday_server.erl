@@ -385,4 +385,5 @@ slot_status_reply(Slots) ->
 slot_status_detail([]) ->
 	[];
 slot_status_detail([Slot | Slots]) ->
-	io_lib:format("~b \"~s\" ~b ~b 0 true\n", [Slot#slot.num, Slot#slot.name, Slot#slot.price, Slot#slot.avail]) ++ slot_status_detail(Slots).
+	io_lib:format("~b \"~s\" ~b ~b 0 ~s\n", [Slot#slot.num, Slot#slot.name, Slot#slot.price, Slot#slot.avail, atom_to_list(not Slot#slot.disabled)]) 
+	    ++ slot_status_detail(Slots).

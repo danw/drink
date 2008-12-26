@@ -71,7 +71,7 @@ handle_call ({drop, Slot}, _From, State) ->
 	case {State#dmstate.commpid, get_slot_by_num(Slot, State)} of
 	    {nil, _} ->
 	        {reply, {error, machine_down}, State};
-		{CommPid, {ok, SlotInfo}} when SlotInfo#slot.avail > 0 ->
+		{CommPid, {ok, SlotInfo}} when SlotInfo#slot.avail > 0, SlotInfo#slot.disabled =:= false ->
 			Ref = make_ref(),
 			case timer:send_after(timer:seconds(30), {timeout, Ref}) of
 				{ok, Timer} ->
@@ -233,9 +233,9 @@ slots (MachinePid) ->
 slot_info (MachinePid, Slot) when is_integer(Slot) ->
 	safe_gen_call(MachinePid, {slot_info, Slot}).
 
-set_slot_info (UserRef, SlotInfo = #slot{machine = MachinePid, num = SlotNum, name = Name, price = Price, avail = Avail}) 
+set_slot_info (UserRef, SlotInfo = #slot{machine = MachinePid, num = SlotNum, name = Name, price = Price, avail = Avail, disabled = Disabled}) 
         when is_reference(UserRef), is_atom(MachinePid), is_integer(SlotNum), is_list(Name), is_integer(Price), is_integer(Avail),
-        Price >= 0, Avail >= 0, SlotNum >= 0 ->
+             is_atom(Disabled), Price >= 0, Avail >= 0, SlotNum >= 0 ->
     case user_auth:can_admin(UserRef) of
         true ->
             safe_gen_call(MachinePid, {set_slot_info, SlotInfo});

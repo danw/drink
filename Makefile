@@ -31,4 +31,4 @@ logs:
 	erl -boot start_sasl -sasl sasl_error_logger false -noshell -eval 'rb:start([{report_dir, "/root/drink/log"}]), rb:show(), init:stop().'
 
 shell:
-	erl -sname drink_shell -eval 'net_adm:ping(drink)'
+	erl -sname drink_shell

@@ -141,15 +141,18 @@ handle_call ({temp}, _From, State) ->
 		Temp ->
 			{reply, {ok, Temp}, State}
 	end;
-handle_call ({got_comm, CommPid}, _From, State) ->
+handle_call ({got_comm, CommPid}, _From, State = #dmstate{record = #machine{allow_connect = true}}) ->
     case State#dmstate.commpid of
         nil ->
             ok;
         Pid ->
+            error_logger:error_msg("Got incoming machine connection from currently connected machine, killing old connection."),
             exit(Pid, machine_reconnect)
     end,
     link(CommPid),
     {reply, {ok, self()}, State#dmstate{commpid = CommPid}};
+handle_call ({got_comm, _CommPid}, _From, State) ->
+    {reply, {error, connection_refused}, State};
 handle_call ({is_alive}, _From, State = #dmstate{commpid = nil}) ->
     {reply, false, State};
 handle_call ({is_alive}, _From, State) ->

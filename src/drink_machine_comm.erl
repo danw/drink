@@ -60,8 +60,10 @@ loop (waiting_for_auth, State) ->
 					send(machine_ack, Socket),
 					inet:setopts(Socket, [{active, once}]),
 					case drink_machine:got_machine_comm(MachineId) of
+					    {error, connection_refused} ->
+					        exit(connection_refused);
 						{error, Reason} ->
-							error_logger:error_msg("Failure starting machine: ~p", [Reason]),
+							error_logger:error_msg("Failure connecting machine: ~p", [Reason]),
 							exit(Reason);
 						{ok, Pid} ->
 							link(Pid),
@@ -92,6 +94,7 @@ loop (normal_op, State) ->
 			error_logger:error_msg("Machine Exited: ~p", [Reason]),
 			exit(Reason);
 		{send, Machine, Command} ->
+		    error_logger:error_msg("~p Sending Command: ~p", [Machine, Command]),
 			send(Command, Socket),
 			loop(normal_op, State);
 		{tcp, Socket, Data} ->
@@ -121,20 +124,12 @@ send_command(MachineComm, Command) ->
 machine_lookup(From, Pass) when is_list(Pass) ->
 	machine_lookup(From, list_to_atom(Pass));
 machine_lookup({Address, _Port}, Pass) when is_atom(Pass) ->
-	Q = qlc:q([ {X#machine.machine, remote_ip} || X <- mnesia:table(machine),
-	                                              X#machine.password =:= Pass ]),
+	Q = qlc:q([ X#machine.machine || X <- mnesia:table(machine),
+	                                              X#machine.password =:= Pass,
+	                                              X#machine.machine_ip =:= Address ]),
 	case mnesia:transaction(fun() -> qlc:eval(Q) end) of
-		{atomic, [{MachineId, remote_ip}]} ->
-		    case Address of
-		        {129,21,60,35} ->
-		            {ok, MachineId};
-		        {129,21,60,36} ->
-		            {ok, MachineId};
-		        {129,21,60,112} ->
-		            {ok, MachineId};
-		        _ ->
-		            {error, ip_mismatch}
-		    end;
+		{atomic, [MachineId]} ->
+		    {ok, MachineId};
 		{atomic, []} ->
 			{error, badpass};
 		{aborted, Reason} ->
@@ -166,11 +161,17 @@ convert_status_list([H|Tail]) ->
 	lists:append([{Slot, SlotStatus}], convert_status_list(Tail)).
 
 % Received Command
-receive_response(<<$4, _/binary>>, _State) ->
+receive_response(<<$4, _/binary>>, State) ->
+    {registered_name, Machine} = process_info(State#dmcomm_state.machine, registered_name),
+    error_logger:error_msg("~p Got Drop Ack", [Machine]),
 	{ok, drop_ack};
-receive_response(<<$5, _/binary>>, _State) ->
+receive_response(<<$5, _/binary>>, State) ->
+    {registered_name, Machine} = process_info(State#dmcomm_state.machine, registered_name),
+    error_logger:error_msg("~p Got Drop Nack", [Machine]),
 	{ok, drop_nack};
-receive_response(<<$7, StatusBin/binary>>, _State) ->
+receive_response(<<$7, StatusBin/binary>>, State) ->
+    {registered_name, Machine} = process_info(State#dmcomm_state.machine, registered_name),
+    error_logger:error_msg("~p Got Slot Status: ~p", [Machine, binary_to_list(StatusBin)]),
 	StatusList = string:tokens(remove_line_ending(StatusBin), "`"),
 	{ok, {slot_status, convert_status_list(StatusList)}};
 receive_response(<<$8, Remain/binary>>, _State) ->

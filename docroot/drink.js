@@ -511,7 +511,10 @@ drink.tabs.drink_machines = new (function() {
 
     var machine_dom = function(name, machine) {
         var m = $('<h3></h3><table><thead><tr><th>Slot Num</th><th>Name</th><th>Price</th><th>Available</th><th>Actions</th></tr></thead><tbody></tbody></table>');
-        m.filter('h3').text(name);
+        if(machine.connected)
+            m.filter('h3').text(name);
+        else
+            m.filter('h3').text(name + ' (disconnected)')
         
         var slots = m.find('tbody');
         for(var slotnum in machine.slots) {

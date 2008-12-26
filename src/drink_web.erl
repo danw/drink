@@ -269,20 +269,32 @@ machines([M|Machines]) ->
     [{M, machine_stat(M)}] ++ machines(Machines).
 
 machine_stat(Machine) ->
-    case {drink_machine:temperature(Machine), drink_machine:slots(Machine)} of
-        {{ok, Temperature}, {ok, Slots}} ->
+    case drink_machine:slots(Machine) of
+        {ok, Slots} ->
             {struct, [
+                {machineid, atom_to_list(Machine)},
+                {name, machine_name(Machine)},
                 {connected, drink_machine:is_alive(Machine)},
-                {temperature, Temperature},
+                {temperature, machine_temperature(Machine)},
                 {slots, {struct, slots(Slots)}}
             ]};
-        {{error, no_temp}, {ok, Slots}} ->
-            {struct, [
-                {connected, drink_machine:is_alive(Machine)},
-                {temperature, false},
-                {slots, {struct, slots(Slots)}}
-            ]};
-        _else ->
+        _Else ->
+            false
+    end.
+
+machine_name(Machine) ->
+    case drink_machine:name(Machine) of
+        {ok, Name} ->
+            Name;
+        _Else ->
+            atom_to_list(Machine)
+    end.
+
+machine_temperature(Machine) ->
+    case drink_machine:temperature(Machine) of
+        {ok, Temperature} ->
+            Temperature;
+        _Else ->
             false
     end.
 

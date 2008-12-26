@@ -30,7 +30,7 @@
 -export ([init/1]).
 -export ([handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 -export ([got_response/2, got_machine_comm/1]).
--export ([slots/1, drop/2, temperature/1, slot_info/2, is_alive/1, set_slot_info/2]).
+-export ([name/1, slots/1, drop/2, temperature/1, slot_info/2, is_alive/1, set_slot_info/2]).
 
 -include ("drink_mnesia.hrl").
 -include_lib ("stdlib/include/qlc.hrl").
@@ -67,6 +67,10 @@ code_change (_OldVsn, State, _Extra) when is_tuple(State) ->
 handle_cast (_Request, State) ->
 	{noreply, State}.
 
+handle_call ({name}, _From, State = #dmstate{record = #machine{name = Name}}) when Name =/= [] ->
+    {reply, {ok, Name}, State};
+handle_call ({name}, _From, State) ->
+    {reply, {ok, atom_to_list(State#dmstate.machineid)}, State};
 handle_call ({drop, Slot}, _From, State) ->
 	case {State#dmstate.commpid, get_slot_by_num(Slot, State)} of
 	    {nil, _} ->
@@ -224,6 +228,9 @@ safe_gen_call(MachinePid, Args) ->
 	end.
 
 % API
+name (MachinePid) ->
+    safe_gen_call(MachinePid, {name}).
+
 drop (MachinePid, Slot) when is_integer(Slot) ->
 	safe_gen_call(MachinePid, {drop, Slot}, infinity).
 

@@ -23,7 +23,7 @@
 %%%
 %%%-------------------------------------------------------------------
 
--record (machine, {machine, password, public_ip, available_sensor = false, machine_ip, allow_connect = true, admin_only = false}).
+-record (machine, {machine, password, name, public_ip, available_sensor = false, machine_ip, allow_connect = true, admin_only = false}).
 -record (slot, {machine, num, name, price = 10000, avail = 0, disabled = false}).
 
 -record (temperature, {machine, time, temperature}).

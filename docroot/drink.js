@@ -417,7 +417,7 @@ drink.tabs.logs = new (function () {
         offset = data.start;
         $('.logoffset').html('' + offset);
         
-        if(limit == data.length)
+        if(limit == data.lines.length)
             $('.lognext').show();
         else
             $('.lognext').hide();
@@ -509,12 +509,12 @@ drink.tabs.drink_machines = new (function() {
         }
     }
 
-    var machine_dom = function(name, machine) {
+    var machine_dom = function(machine) {
         var m = $('<h3></h3><table><thead><tr><th>Slot Num</th><th>Name</th><th>Price</th><th>Available</th><th>Actions</th></tr></thead><tbody></tbody></table>');
         if(machine.connected)
-            m.filter('h3').text(name);
+            m.filter('h3').text(machine.name);
         else
-            m.filter('h3').text(name + ' (disconnected)')
+            m.filter('h3').text(machine.name + ' (disconnected)')
         
         var slots = m.find('tbody');
         for(var slotnum in machine.slots) {
@@ -528,7 +528,7 @@ drink.tabs.drink_machines = new (function() {
             
             if(slot.disabled)
                 s.addClass('disabled');
-            s.data('machine', name);
+            s.data('machine', machine.machineid);
             s.data('slotnum', slotnum);
             
             s.find('.slotnum').text(slotnum);
@@ -563,7 +563,7 @@ drink.tabs.drink_machines = new (function() {
         machine_info = data;
         var machinelist = $('#machines').empty();
         for(var machine in data) {
-            machinelist.append(machine_dom(machine, data[machine]).wrap('<li></li>'));
+            machinelist.append(machine_dom(data[machine]).wrap('<li></li>'));
         }
         
         self.user_update(drink.user.current());

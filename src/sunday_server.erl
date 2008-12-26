@@ -52,7 +52,11 @@ loop (waiting_for_socket, State) ->
 			Q = qlc:q([ X#machine.machine || X <- mnesia:table(machine), X#machine.public_ip =:= Address ]),
 			Machine = case mnesia:transaction(fun() -> qlc:eval(Q) end) of
 				{atomic, [M]} ->
-					gen_tcp:send(Socket, "OK Welcome to " ++ atom_to_list(M) ++ "\n"),
+				    Name = case drink_machine:name(M) of
+				        {ok, N} -> N;
+				        _Else -> atom_to_list(M)
+				    end,
+					gen_tcp:send(Socket, "OK Welcome to " ++ Name ++ "\n"),
 					M;
 				{atomic, []} ->
 					gen_tcp:send(Socket, "OK Welcome to the Erlang Drink Server\n"),
@@ -272,7 +276,11 @@ got_command("MACHINE", [MachineStr], State) ->
 		false ->
 			{error, 0, "Invalid machine.", State};
 		true ->
-			{ok, "Welcome to " ++ MachineStr, State#sunday_state{machine = Machine}}
+		    Name = case drink_machine:name(Machine) of
+		        {ok, N} -> N;
+		        _Else -> MachineStr
+		    end,
+			{ok, "Welcome to " ++ Name, State#sunday_state{machine = Machine}}
 	end;
 got_command("PASS", [Pass], State) ->
 	case State#sunday_state.userref of

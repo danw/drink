@@ -131,7 +131,19 @@ tbody tr td:first-child {
     text-decoration: none;
 }
 
-.slotaction_edit, .slotaction_drop, .slotaction_disable {
+.slotaction_edit, .slotaction_drop, .slotaction_disable, a.machine_edit {
     cursor: pointer;
     color: darkblue;
+}
+
+#drink_machines li.disconnected {
+    background-color: lightgray;
+}
+
+#drink_machines li h3 {
+    margin: 0;
+}
+
+#drink_machines li {
+    margin-bottom: 0.5em;
 }

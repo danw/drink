@@ -133,7 +133,7 @@ out(A) ->
                                         disabled = Disabled
                                     }) of
                                         ok ->
-                                            ok({struct, machines(drink_machines_sup:machines())});
+                                            ok({struct, machines(user_auth:can_admin(Session#ses.user), drink_machines_sup:machines())});
                                         {error, permission_denied} ->
                                             error(permission_denied);
                                         {error, Reason} ->
@@ -186,7 +186,7 @@ out(A) ->
                             userref_to_struct(User)
                     end;
                 "machines" ->
-                    ok({struct, machines(drink_machines_sup:machines())});
+                    ok({struct, machines(user_auth:can_admin(Session#ses.user), drink_machines_sup:machines())});
                 "logout" ->
                     yaws_api:replace_cookie_session(Cookie, #ses{}),
                     ok(true);
@@ -263,12 +263,12 @@ error(Reason) when is_atom(Reason) ->
 error(Reason) ->
     [{content, "application/json", json:encode({struct, [{status, "error"}, {reason, Reason}]})}].
 
-machines([]) ->
+machines(_Admin, []) ->
     [];
-machines([M|Machines]) ->
-    [{M, machine_stat(M)}] ++ machines(Machines).
+machines(Admin, [M|Machines]) when is_boolean(Admin) ->
+    [{M, machine_stat(Admin, M)}] ++ machines(Admin, Machines).
 
-machine_stat(Machine) ->
+machine_stat(false, Machine) ->
     case drink_machine:slots(Machine) of
         {ok, Slots} ->
             {struct, [
@@ -276,6 +276,25 @@ machine_stat(Machine) ->
                 {name, machine_name(Machine)},
                 {connected, drink_machine:is_alive(Machine)},
                 {temperature, machine_temperature(Machine)},
+                {slots, {struct, slots(Slots)}}
+            ]};
+        _Else ->
+            false
+    end;
+machine_stat(true, Machine) ->
+    case drink_machine:slots(Machine) of
+        {ok, Slots} ->
+            {struct, [
+                {machineid, atom_to_list(Machine)},
+                {name, machine_name(Machine)},
+                {connected, drink_machine:is_alive(Machine)},
+                {temperature, machine_temperature(Machine)},
+                {password, "password"},
+                {public_ip, "public_ip"},
+                {available_sensor, false},
+                {machine_ip, "machine_ip"},
+                {allow_connect, true},
+                {admin_only, false},
                 {slots, {struct, slots(Slots)}}
             ]};
         _Else ->

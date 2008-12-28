@@ -257,6 +257,8 @@ admin(User, Username) when is_reference(User), is_list(Username) ->
 user_info(UserRef) when is_reference(UserRef) ->
 	gen_server:call(?MODULE, {user_info, UserRef}).
 
+can_admin(nil) ->
+    false;
 can_admin(UserRef) when is_reference(UserRef) ->
     gen_server:call(?MODULE, {can_admin, UserRef}).
 

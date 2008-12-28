@@ -8,26 +8,31 @@
 $.ui.tabs.getter += " idx ui";
 $.extend($.ui.tabs.prototype, {
     idx: function(str) {
-        elm = this.$tabs.filter('[href$=' + str + ']').eq(0);
-        return this.$tabs.index( elm );
+        return this.$tabs.index( this.$tabs.filter('[href$=' + str + ']').eq(0) );
+    }
+});
+$.fn.extend({
+    unfocusColor: function(str, unColor, color) {
+        $(this).focus(function() {
+            var self = $(this);
+            if(this.value == str)
+                self.val('');
+            self.css('color', color);
+        }).blur(function() {
+            var self = $(this);
+            if(this.value == '')
+                self.css('color', unColor).val(str);
+        }).each(function() {
+            var self = $(this);
+            if(this.value != str)
+                self.css('color', color);
+            else
+                self.css('color', unColor);
+        });
     }
 });
 
 $(document).ready(function() {
-    $('#login_username, #user_admin_username').css("color", "gray").focus(function() {
-        if(this.value == 'username') {
-            $(this).val('');
-        }
-        $(this).css('color', 'black');
-    }).blur(function() {
-        if(this.value == '') {
-            $(this).css('color', 'gray').val('username');
-        }
-    }).each(function() {
-        if(this.value != 'username')
-            $(this).css('color', 'black');
-    });
-    
     drink.user.init();
     
     startEventListening();
@@ -196,6 +201,8 @@ drink.user = new (function() {
     }
     
     this.init = function() {
+        $('#login_username').unfocusColor('username', 'gray', 'black');
+        
         $('#login_form').submit(login);
         $('#user_info a').click(logout);
         
@@ -809,6 +816,8 @@ drink.tabs.user_admin = new (function() {
     }
     
     this.init = function() {
+        $('#user_admin_username').unfocusColor('username', 'gray', 'black');
+        
         $('#user_admin_get_form').submit(get_user_info);
         $('#user_admin_mod_credits_form').submit(modcredits);
         $('#user_admin_add_ibutton').click(addiButton);

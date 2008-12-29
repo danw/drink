@@ -1,0 +1,402 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN"
+	"http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en">
+<head>
+	<title>Sunday Protocol Documentation</title>
+
+<script src="jquery-1.2.6.js" type="text/javascript" charset="utf-8"></script>
+<script type="text/javascript" charset="utf-8">
+	$(document).ready(function() {
+		$('.command').each(function() {
+			$(this).wrap("<a href='#com_" + $(this).text().toLowerCase() + "'></a>");
+		});
+	});
+</script>
+<style type="text/css" media="screen">
+	body {
+		font-family: sans-serif;
+	}
+	h1 {
+		text-align: center;
+	}
+	.command-list, .command-list-detailed h3, .command, .commandline {
+		font-family: monospace;
+	}
+	
+	.commandline {
+		background-color: lightgray;
+		border: 1px solid black;
+		padding: 0.5em 1em;
+		margin: 0.2em;
+	}
+	
+	.commandline .required_arg {
+		text-decoration: underline;
+	}
+	
+	.commandline .deprecated_arg {
+		text-decoration: line-through;
+	}
+</style>
+	
+</head>
+
+<body>
+
+<h1>Sunday Protocol Documentation</h1>
+
+<p>This is the documentation for the Drink Sunday Protocol.<br />
+	The original protocol was written by Joe Sunday [<a href="mailto:sunday@csh.rit.edu">sunday@csh.rit.edu</a>].<br />
+	It has since been updated by Dan Willemsen [<a href="mailto:dan@csh.rit.edu">dan@csh.rit.edu</a>], deprecating some commands and adding new ones.</p>
+
+<p>This document is a Work in Progress, for historical reference, visit <a href="http://antiduh.com/drink/docs/sunday-protocol.html">http://antiduh.com/drink/docs/sunday-protocol.html</a></p>
+
+<h2>Index</h2>
+<ul>
+	<li><a href="#introduction">Introduction</a></li>
+	<li><a href="#doc_convent">Document Conventions</a></li>
+	<li><a href="#proto_convent">Protocol Conventions</a></li>
+	<li><a href="#conn_details">Connection Details</a></li>
+	<li><a href="#server_pairs">Server Command/Response Pairs</a></li>
+	<li><a href="#up_format_specs">Username and Password formatting specifications</a></li>
+	<li><a href="#com_basic">Basic Commands</a><ul class="command-list">
+		<li><a href="#com_drop">DROP</a></li>
+		<li><a href="#com_getbalance">GETBALANCE</a></li>
+		<li><a href="#com_ibutton">IBUTTON</a></li>
+		<li><a href="#com_machine">MACHINE</a></li>
+		<li><a href="#com_pass">PASS</a></li>
+		<li><a href="#com_quit">QUIT</a></li>
+		<li><a href="#com_stat">STAT</a></li>
+		<li><a href="#com_temp">TEMP</a></li>
+		<li><a href="#com_user">USER</a></li>
+		<li><a href="#com_version">VERSION</a></li>
+	</ul></li>
+	<li><a href="#com_admin">Administrative Commands</a><ul class="command-list">
+		<li><a href="#com_addcredits">ADDCREDITS</a></li>
+		<li><a href="#com_editslot">EDITSLOT</a></li>
+		<li><a href="#com_shutdown">SHUTDOWN</a></li>
+	</ul></li>
+	<li><a href="#com_unimpl">Unimplemented Commands (TODO section)</a><ul class="command-list">
+		<li><a href="#com_code">CODE</a></li>
+		<li><a href="#com_edituser">EDITUSER</a></li>
+		<li><a href="#com_isvaliduser">ISVALIDUSER</a></li>
+		<li><a href="#com_location">LOCATION</a></li>
+		<li><a href="#com_log">LOG</a></li>
+		<li><a href="#com_queryadmin">QUERYADMIN</a></li>
+		<li><a href="#com_rand">RAND</a></li>
+		<li><a href="#com_setadmin">SETADMIN</a></li>
+	</ul></li>
+	<li><a href="#com_deprecate">Deprecated Commands</a><ul class="command-list">
+		<li><a href="#com_acctmgrchk">ACCTMGRCHK</a></li>
+		<li><a href="#com_adduser">ADDUSER</a></li>
+		<li><a href="#com_chpass">CHPASS</a></li>
+		<li><a href="#com_rmuser">RMUSER</a></li>
+	</ul></li>
+</ul>
+
+<h2 id="introduction">Introduction</h2>
+
+<h2 id="doc_convent">Document Conventions</h2>
+
+<h2 id="proto_convent">Protocol Conventions</h2>
+
+<h2 id="conn_details">Connection Details</h2>
+
+<h2 id="server_pairs">Server Command/Response Pairs</h2>
+
+<h2 id="up_format_specs">Username and Password formatting specifications</h2>
+
+<h2 id="com_basic">Basic Commands</h2>
+<ul class="command-list-detailed">
+	<li id="com_drop"><h3>DROP</h3>
+		<dl>
+			<dt>Usage</dt>
+			<dd><div class="commandline">> DROP <span class="required_arg">slotnum</span> <span class="optional_arg">[delay]</span></div></dd>
+			<dt>Arguments</dt>
+			<dd><dl>
+				<dt>slotnum</dt>
+				<dd>The slot number from the current machine to drop.</dd>
+				<dt>delay</dt>
+				<dd>Optional, delay in seconds before executing the drop.</dd>
+			</dl></dd>
+			<dt>Requires</dt>
+			<dd>Authenticated User, Machine selected</dd>
+		</dl>
+	</li>
+	<li id="com_getbalance"><h3>GETBALANCE</h3>
+		<dl>
+			<dt>Usage</dt>
+			<dd><div class="commandline">> GETBALANCE <span class="optional_arg">[username]</span></div></dd>
+			<dt>Arguments</dt>
+			<dd><dl>
+				<dt>username</dt>
+				<dd>User to check the balance of, can only be used by admins</dd>
+			</dl></dd>
+			<dt>Requires</dt>
+			<dd>Authenticated User, Admin User in order to obtain other user's balance</dd>
+		</dl>
+	</li>
+	<li id="com_ibutton"><h3>IBUTTON</h3>
+		<dl>
+			<dt>Usage</dt>
+			<dd><div class="commandline">> IBUTTON <span class="required_arg">ibutton</span></div></dd>
+			<dt>Arguments</dt>
+			<dd><dl>
+				<dt>ibutton</dt>
+				<dd>iButton code</dd>
+			</dl></dd>
+			<dt>Requires</dt>
+			<dd>Nothing</dd>
+			<dt>Note:</dt>
+			<dd>This will probably be replaced with a more generic login system that won't require username/password</dd>
+		</dl>
+	</li>
+	<li id="com_machine"><h3>MACHINE</h3>
+		<dl>
+			<dt>Usage</dt>
+			<dd><div class="commandline">> MACHINE <span class="required_arg">machine</span></div></dd>
+			<dt>Arguments</dt>
+			<dd><dl>
+				<dt>machine</dt>
+				<dd>Machine to select.</dt>
+			</dl></dd>
+			<dt>Requires</dt>
+			<dd>Nothing</dd>
+		</dl>
+	</li>
+	<li id="com_pass"><h3>PASS</h3>
+		<dl>
+			<dt>Usage</dt>
+			<dd><div class="commandline">> PASS <span class="required_arg">password</span></div></dd>
+			<dt>Arguments</dt>
+			<dd><dl>
+				<dt>password</dt>
+				<dd>Password</dd>
+			</dl></dd>
+			<dt>Requires</dt>
+			<dd><span class="command">USER</span> command sent</dd>
+		</dl>
+	</li>
+	<li id="com_quit"><h3>QUIT</h3>
+		<dl>
+			<dt>Usage</dt>
+			<dd><div class="commandline">> QUIT</div></dd>
+			<dt>Requires</dt>
+			<dd>Nothing</dd>
+		</dl>
+	</li>
+	<li id="com_stat"><h3>STAT</h3>
+		<dl>
+			<dt>Usage</dt>
+			<dd><div class="commandline">> STAT <span class="optional_arg">[slotnum]</span></div></dd>
+			<dt>Arguments</dt>
+			<dd><dl>
+				<dt>slotnum</dt>
+				<dd>Limits response to the specified slot number. Returns ? when slot not found.</dd>
+			</dl></dd>
+			<dt>Requires</dt>
+			<dd>Nothing</dd>
+		</dl>
+	</li>
+	<li id="com_temp"><h3>TEMP</h3>
+		<dl>
+			<dt>Usage</dt>
+			<dd><div class="commandline">> TEMP</div></dd>
+			<dt>Requires</dt>
+			<dd>Nothing</dd>
+		</dl>
+	</li>
+	<li id="com_user"><h3>USER</h3>
+		<dl>
+			<dt>Usage</dt>
+			<dd><div class="commandline">> USER <span class="required_arg">username</span></div></dd>
+			<dt>Requires</dt>
+			<dd>Nothing</dd>
+			<dt>See also</dt>
+			<dd>Follow this command with <span class="command">PASS</span> to log in.</dd>
+		</dl>
+	</li>
+	<li id="com_version"><h3>VERSION</h3>
+		<dl>
+			<dt>Usage</dt>
+			<dd><div class="commandline">> VERSION</div></dd>
+			<dt>Requires</dt>
+			<dd>Nothing</dd>
+		</dl>
+	</li>
+</ul>
+
+<h2 id="com_admin">Administrative Commands</h2>
+<p>These commands are for drink admins to modify or view more information than normal users</p>
+<ul class="command-list-detailed">
+	<li id="com_addcredits"><h3>ADDCREDITS</h3>
+		<dl>
+			<dt>Usage</dt>
+			<dd><div class="commandline">> ADDCREDITS <span class="required_arg">user</span> <span class="required_arg">credits</span></div></dd>
+			<dt>Arguments</dt>
+			<dd><dl>
+				<dt>user</dt>
+				<dd>Username.</dd>
+				<dt>credits</dt>
+				<dd>The number of credits to add. May be negative, but must be a whole number.</dd>
+			</dl></dd>
+			<dt>Requires</dt>
+			<dd>Admin User</dd>
+		</dl>
+	</li>
+	<li id="com_editslot"><h3>EDITSLOT</h3>
+		<dl>
+			<dt>Usage</dt>
+			<dd><div class="commandline">> EDITSLOT <span class="required_arg">slotnum</span> <span class="required_arg">name</span> <span class="required_arg">cost</span> <span class="required_arg">quantity</span> <span class="deprecated_arg">numdropped</span> <span class="required_arg">enabled</span></div></dd>
+			<dt>Arguments</dt>
+			<dd><dl>
+				<dt>slotnum</dt>
+				<dd>The slot number to edit.</dd>
+				<dt>name</dt>
+				<dd>The name of the slot, currently can't use quotes(TODO), so cannot contain spaces.</dd>
+				<dt>cost</dt>
+				<dd>The cost of the slot, positive whole numbers only.</dd>
+				<dt>quantity</dt>
+				<dd>Quantity remaining in the slot, positive whole numbers only.</dd>
+				<dt>numdropped</dt>
+				<dd>Unused. Send something, but this may just be 0.</dd>
+				<dt>enabled</dt>
+				<dd>TODO: not currently implemented (server supports, just not in protocol yet)</dd>
+			</dl></dd>
+			<dt>Requires</dt>
+			<dd>Admin User, Machine Selected</dd>
+		</dl>
+	</li>
+	<li id="com_shutdown"><h3>SHUTDOWN</h3>
+		<dl>
+			<dt>Usage</dt>
+			<dd><div class="commandline">> SHUTDOWN <span class="optional_arg">[-r]</span></div></dd>
+			<dt>Arguments</dt>
+			<dd><dl>
+				<dt>-r</dt>
+				<dd>Restarts the drink server instead of shutting down.</dd>
+			</dl></dd>
+			<dt>Requires</dt>
+			<dd>Admin User</dd>
+		</dl>
+	</li>
+</ul>
+
+<h2 id="com_unimpl">Unimplemented Commands</h2>
+<p>These commands just aren't implemented yet in the current server. If you want to use them, you should fix that :)</p>
+<ul class="command-list-detailed">
+	<li id="com_code"><h3>CODE</h3>
+		<dl>
+			<dt>Requires</dt>
+			<dd>Authenticated User</dd>
+		</dl>
+	</li>
+	<li id="com_edituser"><h3>EDITUSER</h3>
+		<dl>
+			<dt>Usage</dt>
+			<dd><div class="commandline">> EDITUSER <span class="required_arg">username</span> <span class="required_arg">credits</span> <span class="optional_arg">admin</span></div></dd>
+			<dt>Arguments</dt>
+			<dd><dl>
+				<dt>username</dt>
+				<dd></dd>
+				<dt>credits</dt>
+				<dd></dd>
+				<dt>admin</dt>
+				<dd></dd>
+			</dl></dd>
+			<dt>Requires</dt>
+			<dd>Admin User</dd>
+		</dl>
+	</li>
+	<li id="com_isvaliduser"><h3>ISVALIDUSER</h3>
+		<dl>
+			<dt>Usage</dt>
+			<dd><div class="commandline">> ISVALIDUSER <span class="required_arg">username</span></div></dd>
+			<dt>Arguments</dt>
+			<dd><dl>
+				<dt>username</dt>
+				<dd>Username to check.</dd>
+			</dl></dd>
+			<dt>Requires</dt>
+			<dd>Admin User</dd>
+		</dl>
+	</li>
+	<li id="com_location"><h3>LOCATION</h3>
+		<dl>
+			<dt>Usage</dt>
+			<dd><div class="commandline">> LOCATION</div></dd>
+			<dt>Requires</dt>
+			<dd>Machine selected</dd>
+		</dl>
+	</li>
+	<li id="com_log"><h3>LOG</h3>
+		<dl>
+			<dt>Requires</dt>
+			<dd>Admin User</dd>
+		</dl>
+	</li>
+	<li id="com_queryadmin"><h3>QUERYADMIN</h3>
+		<dl>
+			<dt>Usage</dt>
+			<dd><div class="commandline">> QUERYADMIN <span class="required_arg">username</span></div></dd>
+			<dt>Arguments</dt>
+			<dd><dl>
+				<dt>username</dt>
+				<dd>User to check for admin status</dd>
+			</dl></dd>
+			<dt>Requires</dt>
+			<dd>Admin User</dd>
+		</dl>
+	</li>
+	<li id="com_rand"><h3>RAND</h3>
+		<dl>
+			<dt>Usage</dt>
+			<dd><div class="commandline">> RAND <span class="optional_arg">[delay]</span></div></dd>
+			<dt>Arguments</dt>
+			<dd><dl>
+				<dt>delay</dt>
+				<dd>Optional, Seconds to delay before dropping.</dd>
+			</dl></dd>
+			<dt>Requires</dt>
+			<dd>Authenticated User</dd>
+		</dl>
+	</li>
+	<li id="com_setadmin"><h3>SETADMIN</h3>
+		<dl>
+			<dt>Usage</dt>
+			<dd><div class="commandline">> SETADMIN <span class="required_arg">username</span> <span class="required_arg">admin</span></div></dd>
+			<dt>Arguments</dt>
+			<dd><dl>
+				<dt>username</dt>
+				<dd>Username</dd>
+				<dt>admin</dt>
+				<dd>Boolean</dd>
+			</dl></dd>
+			<dt>Requires</dt>
+			<dd>Admin User</dd>
+		</dl>
+	</li>
+</ul>
+
+<h2 id="com_deprecate">Deprecated Commands</h2>
+<p>These commands are no long accepted. The <span class="command">ACCTMGRCHK</span> is deprecated because it no longer fits with the current drink server design - it may return in the future with a similar role, so it's not harmful to continue using it. The <span class="command">ADDUSER</span>, <span class="command">CHPASS</span>, and <span class="command">RMUSER</span> commands aren't used because the accounts are now integrated with the CSH systems.</p>
+<ul class="command-list-detailed">
+	<li id="com_acctmgrchk"><h3>ACCTMGRCHK</h3>
+		<dl>
+			<dt>Usage</dt>
+			<dd><div class="commandline">> ACCTMGRCHK</div></dd>
+			<dt>Deprecation Status</dt>
+			<dd>This command will always return success for backwards compatibility.</dd>
+			<dt>Requires</dt>
+			<dd>Nothing</dd>
+		</dl>
+	</li>
+	<li id="com_adduser"><h3>ADDUSER</h3></li>
+	<li id="com_chpass"><h3>CHPASS</h3></li>
+	<li id="com_rmuser"><h3>RMUSER</h3></li>
+</ul>
+
+</body>
+</html>

@@ -70,5 +70,14 @@ yaws_conf() ->
 	    docroot = Docroot,
 	    allowed_scripts = [yaws],
 	    ssl = Ssl,
-	    appmods = [{"/drink", drink_web}]},
+	    appmods = [{"/drink", drink_web}],
+	    authdirs = [{"/docs", #auth{dir = "/docs", mod = authmod_webauth}}],
+	    start_mod = authmod_webauth,
+	    opaque = [
+	        {webauth_keytab, "FILE:" ++ filename:join(code:priv_dir(drink), "webauth.keytab")},
+	        {webauth_sslca, filename:join(code:priv_dir(drink), "cshca.crt")},
+	        {webauth_login_url, "https://webauth.csh.rit.edu/login/"},
+	        {webauth_kdc_url, "https://webauth.csh.rit.edu/webkdc-service/"},
+	        {webauth_kdc_princ, "service/webkdc@CSH.RIT.EDU"}
+	    ]},
 	yaws_api:setconf(GC, [[SC], [SCssl]]).

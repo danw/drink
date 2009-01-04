@@ -1,4 +1,4 @@
-{['src/*', 'src/pam/*', 'src/mysql/*'], 
+{['src/*', 'src/pam/*', 'src/mysql/*', 'src/webauth/*'], 
    [{outdir, "ebin"},
 	debug_info,
 	{i, "include"},

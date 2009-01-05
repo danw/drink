@@ -152,9 +152,9 @@ handle_call({handle, Arg}, _From, State) ->
                     Cookie = yaws_api:setcookie(?WEBAUTH_COOKIE, AppToken, "/", "", "", on),
                     {reply, [Cookie, {redirect, "https://drink.csh.rit.edu/"}], NewState};
                 {error, Reason, NewState} ->
-                    {reply, [{html, "Permission Denied: " ++ io_lib:format("~p", [Reason])}], NewState};
+                    {reply, [{html, "<h1>Please refresh</h1><br>Permission Denied: " ++ io_lib:format("~p", [Reason])}], NewState};
                 E ->
-                    {reply, [{html, "Permission Denied: " ++ io_lib:format("~p", [E])}], State}
+                    {reply, [{html, "<h1>Please refresh</h1><br>Permission Denied: " ++ io_lib:format("~p", [E])}], State}
             end;
         _ ->
             % TODO: strip webauth cookies?

@@ -78,6 +78,8 @@ handle_call ({auth, Ibutton}, _From, State) when is_list(Ibutton) ->
 		{error, Reason} ->
 			{reply, {error, Reason}, State}
 	end;
+handle_call ({auth, {webauth, Username}}, _From, State) when is_list(Username) ->
+    {reply, {ok, create_user_ref(Username, [read, drop, authed], State)}, State};
 handle_call ({admin, Admin, Username}, _From, State) when is_reference(Admin), is_list(Username) ->
 	case get_user(Username, State) of
 		{ok, User} ->
@@ -249,7 +251,9 @@ auth(Username, Password) when is_list(Username), is_list(Password) ->
 	gen_server:call(?MODULE, {auth, Username, Password}).
 
 auth(Ibutton) when is_list(Ibutton) ->
-	gen_server:call(?MODULE, {auth, Ibutton}).
+	gen_server:call(?MODULE, {auth, Ibutton});
+auth({webauth, Username}) when is_list(Username) ->
+    gen_server:call(?MODULE, {auth, {webauth, Username}}).
 
 admin(User, Username) when is_reference(User), is_list(Username) ->
 	gen_server:call(?MODULE, {admin, User, Username}).

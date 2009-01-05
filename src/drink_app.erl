@@ -71,7 +71,7 @@ yaws_conf() ->
 	    allowed_scripts = [yaws],
 	    ssl = Ssl,
 	    appmods = [{"/drink", drink_web}],
-	    authdirs = [{"/docs", #auth{dir = "/docs", mod = authmod_webauth}}],
+	    authdirs = [{"/", #auth{dir = "/", mod = authmod_webauth}}],
 	    start_mod = authmod_webauth,
 	    opaque = [
 	        {webauth_keytab, "FILE:" ++ filename:join(code:priv_dir(drink), "webauth.keytab")},

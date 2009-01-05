@@ -96,7 +96,6 @@ static int process_session_key_req(ETERM *data, ETERM **ret) {
     erl_free(kdc_princ);
     
     if(retval) {
-        fprintf(stderr, "Got req string length: %d\n", k5_req_len);
         *ret = erl_mk_binary(k5_req, k5_req_len);
     }
     
@@ -143,7 +142,7 @@ static int process_command(uint8_t *buf) {
         data = erl_var_content(pattern, "Data");
         
         cmdstr = ERL_ATOM_PTR(cmd);
-        fprintf(stderr, "Got command: %s\n", cmdstr);
+        
         if(!strcmp(cmdstr, "session_key_req")) {
             retval = process_session_key_req(data, &ret);
         }

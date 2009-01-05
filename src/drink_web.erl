@@ -39,19 +39,6 @@ out(A) ->
     RetContent = case (A#arg.req)#http_request.method of
         'POST' ->
             case A#arg.appmoddata of
-                "login" ->
-                    case {yaws_api:postvar(A, "username"), yaws_api:postvar(A, "password")} of
-                        {{ok, UserName}, {ok, Pass}} ->
-                            case user_auth:auth(UserName, Pass) of
-                                {ok, User} ->
-                                    yaws_api:replace_cookie_session(Cookie, Session#ses{user=User}),
-                                    userref_to_struct(User);
-                                _Else ->
-                                    error(bad_auth)
-                            end;
-                        _Else ->
-                            error(invalid_args)
-                    end;
                 "moduser" ->
                     case {Session#ses.user, yaws_api:postvar(A, "username"),
                                             yaws_api:postvar(A, "attr"),
@@ -153,8 +140,6 @@ out(A) ->
                     error(wrong_method);
                 "machines" ->
                     error(wrong_method);
-                "logout" ->
-                    error(wrong_method);
                 "userinfo" ->
                     error(wrong_method);
                 "currentuser" ->
@@ -187,9 +172,6 @@ out(A) ->
                     end;
                 "machines" ->
                     ok({struct, machines(user_auth:can_admin(Session#ses.user), drink_machines_sup:machines())});
-                "logout" ->
-                    yaws_api:replace_cookie_session(Cookie, #ses{}),
-                    ok(true);
                 "logs" ->
                     case {yaws_api:queryvar(A, "offset"), yaws_api:queryvar(A, "limit")} of
                         {{ok, OffsetStr}, {ok, LimitStr}} ->
@@ -242,8 +224,6 @@ out(A) ->
                 "setslot" ->
                     error(wrong_method);
                 "drop" ->
-                    error(wrong_method);
-                "login" ->
                     error(wrong_method);
                 "moduser" ->
                     error(wrong_method);
@@ -392,13 +372,17 @@ session_start(A) ->
                     {ok, Val, Sess, ok};
                 _Else ->
                     % error_logger:error_msg("No session, creating new cookie"),
-                    Session = #ses{},
+                    {true, {User, _, _}} = authmod_webauth:auth(A, undefined),
+                    {ok, UserRef} = user_auth:auth({webauth, User}),
+                    Session = #ses{user = UserRef},
                     Cookie = yaws_api:new_cookie_session(Session),
                     {ok, Cookie, Session, yaws_api:setcookie("ssid", Cookie, "/")}
             end;
         [] ->
             % error_logger:error_msg("No cookie, creating new session"),
-            Session = #ses{},
+            {true, {User, _, _}} = authmod_webauth:auth(A, undefined),
+            {ok, UserRef} = user_auth:auth({webauth, User}),
+            Session = #ses{user = UserRef},
             Cookie = yaws_api:new_cookie_session(Session),
             {ok, Cookie, Session, yaws_api:setcookie("ssid", Cookie, "/")}
     end.

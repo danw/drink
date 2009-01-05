@@ -75,8 +75,8 @@ stop() ->
     supervisor:terminate_child(?SUPERVISOR, ?SERVER),
     supervisor:delete_child(?SUPERVISOR, ?SERVER).
 
-auth(Arg, Auth) when is_record(Arg, arg), is_record(Auth, auth) ->
-    gen_server:call(?SERVER, {auth, Arg, Auth}).
+auth(Arg, Auth) when is_record(Arg, arg) ->
+    gen_server:call(?SERVER, {auth, Arg}).
 
 out(Arg) when is_record(Arg, arg) -> % Strip webauth cookies, redirect to webkdc for login
     gen_server:call(?SERVER, {handle, Arg}).
@@ -126,7 +126,7 @@ code_change(_OldVsn, State, _Extra) ->
 handle_cast(_Request, State) ->
     {noreply, State}.
 
-handle_call({auth, Arg, _Auth}, _From, State) ->
+handle_call({auth, Arg}, _From, State) ->
     % TODO: just fail for xmlhttprequests
     case yaws_api:find_cookie_val(?WEBAUTH_COOKIE, Arg) of
         [] -> % No cookie, forward to webkdc - TODO: catch response from webkdc
@@ -134,10 +134,8 @@ handle_call({auth, Arg, _Auth}, _From, State) ->
         CookieStr -> % Found cookie, check validity, insert user record
             case webauth_cookie_valid(CookieStr, State) of
                 {ok, User} ->
-                    io:format("got user: ~p~n", [User]),
                     {reply, {true, {User, undefined, undefined}}, State};
                 Else ->
-                    error_logger:error_msg(":( bad cookie: ~p~n", [Else]),
                     {reply, {appmod, authmod_webauth}, State}
             end
     end;
@@ -152,7 +150,7 @@ handle_call({handle, Arg}, _From, State) ->
                 {ok, {User, _, _} = Attrs, NewState} ->
                     AppToken = webauth_cookie_create(Attrs, NewState),
                     Cookie = yaws_api:setcookie(?WEBAUTH_COOKIE, AppToken, "/", "", "", on),
-                    {reply, [Cookie, {html, "Welcome, " ++ User}], NewState};
+                    {reply, [Cookie, {redirect, "https://drink.csh.rit.edu/"}], NewState};
                 {error, Reason, NewState} ->
                     {reply, [{html, "Permission Denied: " ++ io_lib:format("~p", [Reason])}], NewState};
                 E ->
@@ -297,7 +295,7 @@ webkdc_request_token(Arg, SessionKey, State) ->
     token_encode([
         {t, req},
         {ct, <<Now:32/big>>},
-        {ru, "https://drink.csh.rit.edu/docs/sunday.html"},
+        {ru, "https://drink.csh.rit.edu/"},
         {rtt, id},
         {sa, webkdc}
             ], SessionKey).

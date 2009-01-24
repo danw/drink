@@ -592,7 +592,7 @@ drink.tabs.drink_machines = new (function() {
         var available = new Number(available);
         if(available == NaN || available < 0)
             return;
-        set_slot_info(machine, slot, name, price, available, slot.disabled);
+        set_slot_info(machine, slotnum, name, price, available, slot.disabled);
     }
     
     var toggleDisabled = function(machine, slotnum) {

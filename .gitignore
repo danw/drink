@@ -8,4 +8,6 @@ priv/eldap.conf
 priv/epam
 priv/key.pem
 priv/dbpass
+priv/webauth.keytab
+priv/ewebauth
 web_log

@@ -32,208 +32,196 @@
 -include ("user.hrl").
 -include ("drink_mnesia.hrl").
 
--record (ses, {user=nil}).
-
 out(A) ->
-    {ok, Cookie, Session, SessionCookie} = session_start(A),
-    RetContent = case (A#arg.req)#http_request.method of
-        'POST' ->
-            case A#arg.appmoddata of
-                "moduser" ->
-                    case {Session#ses.user, yaws_api:postvar(A, "username"),
-                                            yaws_api:postvar(A, "attr"),
-                                            yaws_api:postvar(A, "value"),
-                                            yaws_api:postvar(A, "reason")} of
-                        {nil, _, _, _, _} ->
-                            error(permission_denied);
-                        {AdminUser, {ok, UserName}, {ok, Attr}, {ok, Value}, ModReason} ->
-                            case user_auth:admin(AdminUser, UserName) of
-                                {ok, User} ->
-                                    mod_user(User, list_to_atom(Attr), Value, ModReason);
-                                {error, permission_denied} ->
-                                    error(permission_denied);
-                                {error, invalid_user} ->
-                                    error(invalid_user);
-                                {error, Reason} ->
-                                    error(Reason);
-                                _Else ->
-                                    error(unknown)
-                            end;
-                        _ ->
-                            error(invalid_args)
-                    end;
-                "drop" ->
-                    case {Session#ses.user, yaws_api:postvar(A, "machine"), yaws_api:postvar(A, "slot")} of
-                        {nil, _, _} ->
-                            error(permission_denied);
-                        {User, {ok, Machine}, {ok, Slot}} ->
-                            case string:to_integer(Slot) of
-                                {error, _Reason} ->
-                                    error(invalid_args);
-                                {SlotNum, _} ->
-                                    case user_auth:drop(User, list_to_atom(Machine), SlotNum) of
-                                        ok ->
-                                            ok(true);
-                                        {error, permission_denied} ->
-                                            error(permission_denied);
-                                        {error, slot_empty} ->
-                                            error(slot_empty);
-                                        {error, machine_down} ->
-                                            error(machine_down);
-                                        {error, Reason} ->
-                                            error(Reason);
-                                        _Else ->
-                                            error(unknown)
-                                    end
-                            end;
-                        _ ->
-                            error(invalid_args)
-                    end;
-                "setslot" ->
-                    case {Session#ses.user,
-                          yaws_api:postvar(A, "machine"), 
-                          yaws_api:postvar(A, "slot"),
-                          yaws_api:postvar(A, "name"),
-                          yaws_api:postvar(A, "price"),
-                          yaws_api:postvar(A, "available"),
-                          yaws_api:postvar(A, "disabled")} of
-                        {nil, _, _, _, _, _, _} ->
-                            error(permission_denied);
-                        {User, {ok, Machine}, {ok, SlotStr}, {ok, Name}, {ok, PriceStr}, {ok, AvailStr}, {ok, DisabledStr}} ->
-                            case {string:to_integer(SlotStr),
-                                  string:to_integer(PriceStr),
-                                  string:to_integer(AvailStr),
-                                  list_to_atom(DisabledStr)} of
-                                {{error, _}, _, _, _} ->
-                                    error(invalid_args);
-                                {_, {error, _}, _, _} ->
-                                    error(invalid_args);
-                                {_, _, {error, _}, _} ->
-                                    error(invalid_args);
-                                {{Slot, _}, {Price, _}, {Avail, _}, Disabled} when is_boolean(Disabled) ->
-                                    case drink_machine:set_slot_info(User, #slot{
-                                        machine = list_to_atom(Machine),
-                                        num = Slot,
-                                        name = Name,
-                                        price = Price,
-                                        avail = Avail,
-                                        disabled = Disabled
-                                    }) of
-                                        ok ->
-                                            ok({struct, machines(user_auth:can_admin(Session#ses.user), drink_machines_sup:machines())});
-                                        {error, permission_denied} ->
-                                            error(permission_denied);
-                                        {error, Reason} ->
-                                            error(Reason)
-                                    end;
-                                _ ->
-                                    error(invalid_args)
-                            end;
-                        _ ->
-                            error(invalid_args)
-                    end;
-                "temperatures" ->
-                    error(wrong_method);
-                "logs" ->
-                    error(wrong_method);
-                "events" ->
-                    error(wrong_method);
-                "machines" ->
-                    error(wrong_method);
-                "userinfo" ->
-                    error(wrong_method);
-                "currentuser" ->
-                    error(wrong_method);
-                _Else ->
-                    error(unknown_path)
+    case authmod_webauth:auth(A, undefined) of
+        {true, {User, _, _}} ->
+            case user_auth:auth({webauth, User}) of
+                {ok, UserRef} ->
+                    Ret = request(A, UserRef, (A#arg.req)#http_request.method, list_to_atom(A#arg.appmoddata)),
+                    user_auth:delete_ref(UserRef),
+                    Ret;
+                _ ->
+                    error(login_failed)
             end;
-        'GET' ->
-            case A#arg.appmoddata of
-                "userinfo" ->
-                    case yaws_api:queryvar(A, "user") of
-                        {ok, UserName} ->
-                            case user_auth:user(Session#ses.user, UserName) of
-                                {ok, User} ->
-                                    Ret = userref_to_struct(User),
-                                    user_auth:delete_ref(User),
-                                    Ret;
-                                _Else ->
-                                    error(invalid_user)
-                            end;
+        _ ->
+            error(login_failed)
+    end.
+
+request(_, U, 'GET', currentuser) ->
+    userref_to_struct(U);
+request(_, _, _, currentuser) -> error(wrong_method);
+
+request(A, U, 'POST', drop) ->
+    case {yaws_api:postvar(A, "machine"), yaws_api:postvar(A, "slot")} of
+        {{ok, Machine}, {ok, Slot}} ->
+            case string:to_integer(Slot) of
+                {error, _Reason} ->
+                    error(invalid_args);
+                {SlotNum, _} ->
+                    case user_auth:drop(U, list_to_atom(Machine), SlotNum) of
+                        ok ->
+                            ok(true);
+                        {error, permission_denied} ->
+                            error(permission_denied);
+                        {error, slot_empty} ->
+                            error(slot_empty);
+                        {error, machine_down} ->
+                            error(machine_down);
+                        {error, Reason} ->
+                            error(Reason);
                         _Else ->
-                            error(invalid_args)
+                            error(unknown)
+                    end
+            end;
+        _ ->
+            error(invalid_args)
+    end;
+request(_, _, _, drop) -> error(wrong_method);
+
+request(_, _, 'GET', events) ->
+    drink_web_events:register([temperature, drop]),
+    [{streamcontent, "multipart/x-mixed-replace;boundary=\"eventboundaryx\"", "--eventboundaryx\nContent-type: application/json\n\n" ++ json:encode(true) ++ "\n\n"}];
+request(_, _, _, events) -> error(wrong_method);
+
+request(A, U, 'GET', logs) ->
+    case {yaws_api:queryvar(A, "offset"), yaws_api:queryvar(A, "limit")} of
+        {{ok, OffsetStr}, {ok, LimitStr}} ->
+            case {string:to_integer(OffsetStr), string:to_integer(LimitStr)} of
+                {{error, _Reason}, _} ->
+                    error(invalid_args);
+                {_, {error, _Reason}} ->
+                    error(invalid_args);
+                {{Offset, _Rest}, {Limit, _Rest}} when Offset >= 0, Limit =< 100 ->
+                    case drink_mnesia:get_logs(U, Offset, Limit) of
+                        {ok, Data} ->
+                            ok(format_logs(Offset, Limit, Data));
+                        {error, Reason} ->
+                            error(Reason)
                     end;
-                "currentuser" ->
-                    case Session#ses.user of
-                        nil ->
-                            error(not_logged_in);
-                        User ->
-                            userref_to_struct(User)
-                    end;
-                "machines" ->
-                    ok({struct, machines(user_auth:can_admin(Session#ses.user), drink_machines_sup:machines())});
-                "logs" ->
-                    case {yaws_api:queryvar(A, "offset"), yaws_api:queryvar(A, "limit")} of
-                        {{ok, OffsetStr}, {ok, LimitStr}} ->
-                            case {Session#ses.user, string:to_integer(OffsetStr), string:to_integer(LimitStr)} of
-                                {nil, _, _} ->
-                                    error(permission_denied);
-                                {_, {error, _Reason}, _} ->
-                                    error(invalid_args);
-                                {_, _, {error, _Reason}} ->
-                                    error(invalid_args);
-                                {User, {Offset, _Rest}, {Limit, _Rest}} when Offset >= 0, Limit =< 100 ->
-                                    case drink_mnesia:get_logs(User, Offset, Limit) of
-                                        {ok, Data} ->
-                                            ok(format_logs(Offset, Limit, Data));
-                                        {error, Reason} ->
-                                            error(Reason)
-                                    end;
-                                _ ->
-                                    error(invalid_args)
-                            end;
-                        _ ->
-                            error(invalid_args)
-                    end;
-                "temperatures" ->
-                    case {yaws_api:queryvar(A, "from"), yaws_api:queryvar(A, "length")} of
-                        {{ok, FromStr}, {ok, LengthStr}} ->
-                            case {string:to_integer(FromStr), string:to_integer(LengthStr)} of
-                                {{error, _Reason}, _} ->
-                                    error(invalid_args);
-                                {_, {error, _Reason}} ->
-                                    error(invalid_args);
-                                {{From, _Rest}, {Limit, _Rest}} when From >= 0, Limit >= 0, Limit =< 100000 ->
-                                    FromSecs = From + calendar:datetime_to_gregorian_seconds({{1970, 1, 1}, {0, 0, 0}}),
-                                    FromDate = calendar:gregorian_seconds_to_datetime(FromSecs),
-                                    case drink_mnesia:get_temps(FromDate, Limit) of
-                                        {ok, Data} ->
-                                            ok(format_temps(From, Limit, Data));
-                                        {error, Reason} ->
-                                            error(Reason)
-                                    end;
-                                _ ->
-                                    error(invalid_args)
-                            end;
-                        _ ->
-                            error(invalid_args)
-                    end;
-                "events" ->
-                    drink_web_events:register([temperature, drop]),
-                    [{streamcontent, "multipart/x-mixed-replace;boundary=\"eventboundaryx\"", "--eventboundaryx\nContent-type: application/json\n\n" ++ json:encode(true) ++ "\n\n"}];
-                "setslot" ->
-                    error(wrong_method);
-                "drop" ->
-                    error(wrong_method);
-                "moduser" ->
-                    error(wrong_method);
+                _ ->
+                    error(invalid_args)
+            end;
+        _ ->
+            error(invalid_args)
+    end;
+request(_, _, _, logs) -> error(wrong_method);
+
+request(_, U, 'GET', machines) ->
+    ok({struct, machines(user_auth:can_admin(U), drink_machines_sup:machines())});
+request(_, _, _, machines) -> error(wrong_method);
+
+request(A, U, 'POST', moduser) ->
+    case {yaws_api:postvar(A, "username"),
+          yaws_api:postvar(A, "attr"),
+          yaws_api:postvar(A, "value"),
+          yaws_api:postvar(A, "reason")} of
+        {{ok, UserName}, {ok, Attr}, {ok, Value}, ModReason} ->
+            case user_auth:admin(U, UserName) of
+                {ok, User} ->
+                    mod_user(User, list_to_atom(Attr), Value, ModReason);
+                {error, permission_denied} ->
+                    error(permission_denied);
+                {error, invalid_user} ->
+                    error(invalid_user);
+                {error, Reason} ->
+                    error(Reason);
                 _Else ->
-                    error(unknown_path)
+                    error(unknown)
+            end;
+        _ ->
+            error(invalid_args)
+    end;
+request(_, _, _, moduser) -> error(wrong_method);
+
+request(A, U, 'POST', setslot) ->
+    case {yaws_api:postvar(A, "machine"), 
+          yaws_api:postvar(A, "slot"),
+          yaws_api:postvar(A, "name"),
+          yaws_api:postvar(A, "price"),
+          yaws_api:postvar(A, "available"),
+          yaws_api:postvar(A, "disabled")} of
+        {{ok, Machine}, {ok, SlotStr}, {ok, Name}, {ok, PriceStr}, {ok, AvailStr}, {ok, DisabledStr}} ->
+            case {string:to_integer(SlotStr),
+                  string:to_integer(PriceStr),
+                  string:to_integer(AvailStr),
+                  list_to_atom(DisabledStr)} of
+                {{error, _}, _, _, _} ->
+                    error(invalid_args);
+                {_, {error, _}, _, _} ->
+                    error(invalid_args);
+                {_, _, {error, _}, _} ->
+                    error(invalid_args);
+                {{Slot, _}, {Price, _}, {Avail, _}, Disabled} when is_boolean(Disabled) ->
+                    case drink_machine:set_slot_info(U, #slot{
+                        machine = list_to_atom(Machine),
+                        num = Slot,
+                        name = Name,
+                        price = Price,
+                        avail = Avail,
+                        disabled = Disabled
+                    }) of
+                        ok ->
+                            ok({struct, machines(user_auth:can_admin(U), drink_machines_sup:machines())});
+                        {error, permission_denied} ->
+                            error(permission_denied);
+                        {error, Reason} ->
+                            error(Reason)
+                    end;
+                _ ->
+                    error(invalid_args)
+            end;
+        _ ->
+            error(invalid_args)
+    end;
+request(_, _, _, setslot) -> error(wrong_method);
+
+request(A, _, 'GET', temperatures) ->
+    case {yaws_api:queryvar(A, "from"), yaws_api:queryvar(A, "length")} of
+        {{ok, FromStr}, {ok, LengthStr}} ->
+            case {string:to_integer(FromStr), string:to_integer(LengthStr)} of
+                {{error, _Reason}, _} ->
+                    error(invalid_args);
+                {_, {error, _Reason}} ->
+                    error(invalid_args);
+                {{From, _Rest}, {Limit, _Rest}} when From >= 0, Limit >= 0, Limit =< 100000 ->
+                    FromSecs = From + calendar:datetime_to_gregorian_seconds({{1970, 1, 1}, {0, 0, 0}}),
+                    FromDate = calendar:gregorian_seconds_to_datetime(FromSecs),
+                    case drink_mnesia:get_temps(FromDate, Limit) of
+                        {ok, Data} ->
+                            ok(format_temps(From, Limit, Data));
+                        {error, Reason} ->
+                            error(Reason)
+                    end;
+                _ ->
+                    error(invalid_args)
+            end;
+        _ ->
+            error(invalid_args)
+    end;
+request(_, _, _, temperatures) -> error(wrong_method);
+
+request(A, U, 'GET', userinfo) ->
+    case yaws_api:queryvar(A, "user") of
+        {ok, UserName} ->
+            case user_auth:user(U, UserName) of
+                {ok, User} ->
+                    Ret = userref_to_struct(User),
+                    user_auth:delete_ref(User),
+                    Ret;
+                _Else ->
+                    error(invalid_user)
             end;
         _Else ->
-            error(wrong_method)
-    end,
-    [SessionCookie] ++ RetContent.
+            error(invalid_args)
+    end;
+request(_, _, _, userinfo) -> error(wrong_method);
+
+request(_, _, 'GET', _) ->
+    error(unknown_path);
+request(_, _, 'POST', _) ->
+    error(unknown_path);
+request(_, _, _, _) ->
+    error(wrong_method).
 
 ok(Data) ->
     [{content, "application/json", json:encode({struct, [{status, "ok"}, {data, Data}]})}].
@@ -362,30 +350,6 @@ mod_user(UserRef, addibutton, Value, _ModReason) ->
     end;
 mod_user(_, _, _, _) ->
     error(invalid_args).
-
-session_start(A) ->
-    H = A#arg.headers,
-    case yaws_api:find_cookie_val("ssid", H#headers.cookie) of
-        Val when Val /= [] ->
-            case yaws_api:cookieval_to_opaque(Val) of
-                {ok, Sess} ->
-                    {ok, Val, Sess, ok};
-                _Else ->
-                    % error_logger:error_msg("No session, creating new cookie"),
-                    {true, {User, _, _}} = authmod_webauth:auth(A, undefined),
-                    {ok, UserRef} = user_auth:auth({webauth, User}),
-                    Session = #ses{user = UserRef},
-                    Cookie = yaws_api:new_cookie_session(Session),
-                    {ok, Cookie, Session, yaws_api:setcookie("ssid", Cookie, "/")}
-            end;
-        [] ->
-            % error_logger:error_msg("No cookie, creating new session"),
-            {true, {User, _, _}} = authmod_webauth:auth(A, undefined),
-            {ok, UserRef} = user_auth:auth({webauth, User}),
-            Session = #ses{user = UserRef},
-            Cookie = yaws_api:new_cookie_session(Session),
-            {ok, Cookie, Session, yaws_api:setcookie("ssid", Cookie, "/")}
-    end.
 
 encode_json_chunk(Json) ->
     "--eventboundaryx\nContent-type: application/json\n\n" ++ json:encode(Json) ++ "\n\n".

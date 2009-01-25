@@ -111,13 +111,17 @@ log_drop(Drop) ->
             ok
     end.
 
-log_money(Money = #money_log{admin = nil}) ->
-    log_money(Money#money_log{admin = null});
 log_money(Money) ->
+    Admin = case Money#money_log.admin of
+        nil ->
+            null;
+        Else ->
+            Else
+    end,
     case mysql:execute(drink_log, log_money, [
                                 Money#money_log.time,
                                 Money#money_log.username,
-                                Money#money_log.admin,
+                                Admin,
                                 Money#money_log.amount,
                                 Money#money_log.direction,
                                 Money#money_log.reason]) of

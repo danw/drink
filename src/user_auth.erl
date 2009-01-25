@@ -395,7 +395,7 @@ refund(UserInfo, Amount, MoneyReason, State) when is_tuple(UserInfo) ->
 			    username = UserInfo#user.username,
 			    amount = Amount,
 			    reason = MoneyReason,
-			    admin = User#user.adminuser,
+			    admin = UserInfo#user.adminuser,
 			    direction = in
 			},
 			case catch ldap_set_credits(NewUserInfo) of

@@ -612,6 +612,7 @@ drink.tabs.drink_machines = new (function() {
         
         drink.ajax({
             url: '/drink/drop',
+            type: 'POST',
             data: { machine: machine, slot: slot, delay: 0 }
         }, function() {
             alert('Dropping... RUN!');

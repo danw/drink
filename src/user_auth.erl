@@ -316,13 +316,19 @@ valid_ibutton(IButton) when is_list(IButton), length(IButton) =:= 16 ->
 valid_ibutton(_) ->
     {error, bad_ibutton}.
 
+ldap_attribute_val("ibutton", undefined) ->
+    [];
 ldap_attribute_val("ibutton", Val) ->
 	Val;
+ldap_attribute_val("drinkAdmin", undefined) ->
+    false;
 ldap_attribute_val("drinkAdmin", Val) ->
 	case hd(hd(Val)) of
 		$1 -> true;
 		$0 -> false
 	end;
+ldap_attribute_val("drinkBalance", undefined) ->
+    0;
 ldap_attribute_val("drinkBalance", Val) ->
 	{Int, _Extra} = string:to_integer(hd(Val)),
 	Int;
@@ -343,8 +349,8 @@ val_to_ldap_attr(ibutton, Val) ->
 
 ldap_attribute(Attr, {eldap_entry, _Dn, Attrs}) ->
 	ldap_attribute(Attr, Attrs);
-ldap_attribute(_Attr, []) ->
-	false;
+ldap_attribute(Attr, []) ->
+	ldap_attribute(Attr, undefined);
 ldap_attribute(Attr, [{Name, ValueArr}|T]) ->
 	case string:equal(Attr, Name) of
 		true ->

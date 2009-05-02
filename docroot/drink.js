@@ -604,6 +604,9 @@ drink.tabs.drink_machines = new (function() {
         var delay = 0;
         if(arguments.length == 3)
             delay = arguments[2];
+
+        if(delay == null)
+            return;
         
         if(delay > 0) {
             setTimeout(function() { drop(machine, slot) }, delay * 1000);

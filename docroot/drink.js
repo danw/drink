@@ -304,6 +304,9 @@ drink.tabs.temperatures = new (function() {
         var max_time = data.start + data.length - 60;
 
         for(var m in data.machines) {
+            if(data.machines[m].length == 0)
+                continue;
+
             var prev = data.machines[m][0][0];
             var temps = {data: []};
             for(var i in data.machines[m]) {

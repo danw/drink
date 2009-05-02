@@ -624,6 +624,8 @@ drink.tabs.drink_machines = new (function() {
     
     var dropDelayAsk = function(machine, slot) {
         var delay = prompt("Delay? Enter for immediate");
+        if(delay == null)
+            return; // Cancel
         if(delay == '')
             delay = 0;
         else

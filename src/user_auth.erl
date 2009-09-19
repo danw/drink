@@ -350,7 +350,7 @@ val_to_ldap_attr(ibutton, Val) ->
 ldap_attribute(Attr, {eldap_entry, _Dn, Attrs}) ->
 	ldap_attribute(Attr, Attrs);
 ldap_attribute(Attr, []) ->
-	ldap_attribute(Attr, undefined);
+	ldap_attribute_val(Attr, undefined);
 ldap_attribute(Attr, [{Name, ValueArr}|T]) ->
 	case string:equal(Attr, Name) of
 		true ->

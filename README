@@ -4,6 +4,12 @@ For more information about the project:
 
     http://www.csh.rit.edu/projects
 
+Software Requirements:
+    * Erlang
+    * Yaws
+    * Webauth
+    * PAM
+
 Legal Info:
 
     Copyright 2008 by Dan Willemsen <dan@csh.rit.edu>

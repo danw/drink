@@ -1,6 +1,7 @@
 *.boot
 *.script
 ebin/*.beam
+MnesiaCore*
 erl_crash.dump
 log
 mnesia_data
@@ -11,3 +12,6 @@ priv/dbpass
 priv/webauth.keytab
 priv/ewebauth
 web_log
+drink.config
+drink.rel
+.DS_Store

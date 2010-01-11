@@ -1,0 +1,16 @@
+[{drink,
+        [{docroot, "PATH/docroot"},
+		 {weblogs, "PATH/web_log"}]
+},
+{sasl,
+        [{sasl_error_logger, false},
+         {error_logger_mf_dir, "PATH/log/"},
+         {error_logger_mf_maxbytes,10485760}, % 10 MB
+         {error_logger_mf_maxfiles, 10}]
+},
+{mnesia,
+        [{schema_location, disc}, {dir, "PATH/mnesia_data"}]
+},
+{yaws,
+        [{embedded, true}]
+}].

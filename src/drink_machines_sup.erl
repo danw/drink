@@ -33,31 +33,27 @@
 -include_lib ("stdlib/include/qlc.hrl").
 
 start_link () ->
-	supervisor:start_link({local, ?MODULE}, ?MODULE, []).
+	case supervisor:start_link({local, ?MODULE}, ?MODULE, []) of
+	    {ok, Pid} ->
+		MachineSpecs = case mnesia:transaction(fun() -> mnesia:all_keys(machine) end) of
+		    {atomic, Machines} ->
+			lists:foreach(fun(machine) -> supervisor:start_child(?MODULE, machine) end, Machines);
+	    	    _ ->
+			error_logger:error_msg("Failed to read machine table from mnesia! Not creating drink machine instances!~n")
+		end,
+		{ok, Pid};
+	    Error ->
+		Error
+	end.
 
 init ([]) ->
-	{ok, {{one_for_one, 3, 10}, % One for one restart, dies completely after 3 times in 10 seconds
-		  [{littedrink,
-			{drink_machine, start_link, [littledrink]},
+	{ok, {{simple_one_for_one, 3, 10}, % Simple one for one restart, dies completely after 3 times in 10 seconds
+		  [{drink_machine,
+			{drink_machine, start_link, []},
 			permanent,
 			100,
 			worker,
-			[drink_machine]},
-
-           {bigdrink,
-            {drink_machine, start_link, [bigdrink]},
-            permanent,
-            100,
-            worker,
-            [drink_machine]},
-            
-           {snack,
-            {drink_machine, start_link, [snack]},
-            permanent,
-            100,
-            worker,
-            [drink_machine]}]
-		}}.
+			[drink_machine]}]}}.
 
 machine_names([{_,Pid,_,_}|T]) ->
 	{registered_name, Name} = process_info(Pid, registered_name),

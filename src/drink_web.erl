@@ -33,18 +33,34 @@
 -include ("drink_mnesia.hrl").
 
 out(A) ->
-    case authmod_webauth:auth(A, undefined) of
-        {true, {User, _, _}} ->
-            case user_auth:auth({webauth, User}) of
+    User = case lists:keymember(webauth_keytab, 1, A#arg.opaque) of
+        true ->
+            case authmod_webauth:auth(A, undefined) of
+                {true, {WebAuthUser, _, _}} -> {ok, WebAuthUser, []};
+                _ -> error
+            end;
+        false ->
+            case yaws_api:find_cookie_val("drink_user", (A#arg.headers)#headers.cookie) of
+                [] ->
+                    case {A#arg.appmoddata, yaws_api:queryvar(A, "user")} of
+                        {"setusercookie", {ok, CookieUser}} ->
+                            Cookie = yaws_api:setcookie("drink_user", CookieUser, "/"),
+                            {ok, CookieUser, [Cookie]};
+                        _ -> error
+                    end;
+                CookieUser -> {ok, CookieUser, []}
+            end
+    end,
+    case User of
+        {ok, UserName, Headers} ->
+            case user_auth:auth({webauth, UserName}) of
                 {ok, UserRef} ->
                     Ret = request(A, UserRef, (A#arg.req)#http_request.method, list_to_atom(A#arg.appmoddata)),
                     user_auth:delete_ref(UserRef),
-                    Ret;
-                _ ->
-                    error(login_failed)
+                    Headers ++ Ret;
+                _ -> Headers ++ error(login_failed)
             end;
-        _ ->
-            error(login_failed)
+        _ -> error(login_failed)
     end.
 
 request(_, U, 'GET', currentuser) ->

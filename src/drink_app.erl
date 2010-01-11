@@ -80,7 +80,7 @@ yaws_conf() ->
 	    {true, true, true} ->
 		SC = #sconf{
 		    port = get_port(web_port),
-		    servername = "drink.csh.rit.edu",
+		    servername = ServerName,
 		    listen = {0,0,0,0},
 		    docroot = "",
 		    allowed_scripts = [],
@@ -91,7 +91,7 @@ yaws_conf() ->
 		    cacertfile = SSLCA},
 		SCssl = #sconf{
 		    port = get_port(secure_web_port),
-		    servername = "drink.csh.rit.edu",
+		    servername = ServerName,
 		    listen = {0,0,0,0},
 		    docroot = Docroot,
 		    allowed_scripts = [yaws],
@@ -113,7 +113,7 @@ yaws_conf() ->
 		    port = get_port(web_port),
 		    servername = ServerName,
 		    listen = {0, 0, 0, 0},
-		    docroot = "",
+		    docroot = Docroot,
 		    allowed_scripts = [],
 		    appmods = [{"/drink", drink_web}]},
 		yaws_api:setconf(GC, [[SC]])

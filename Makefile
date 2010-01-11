@@ -1,6 +1,7 @@
 ERL = erl -boot drink -config drink -sname drink +K true
 YAWS_EBIN = /usr/local/lib/yaws/ebin
 PWD := $(shell pwd)
+HOSTNAME := $(shell hostname)
 
 INCLUDES := /usr/local/include
 LIB_PATHS :=
@@ -16,6 +17,10 @@ ifeq ($(shell uname -s),Linux)
   INCLUDES += /usr/include/security
 endif
 
+ifeq ($(HOSTNAME),erlang.csh.rit.edu)
+  HOSTNAME := drink.csh.rit.edu
+endif
+
 all: app release
 
 app: compile
@@ -25,7 +30,7 @@ check: compile
 	dialyzer -c ebin
 
 drink.config: drink.config.in
-	m4 --define=PATH=$(PWD) drink.config.in >drink.config
+	m4 --define=PATH=$(PWD) --define=HOSTNAME=$(HOSTNAME) drink.config.in >drink.config
 
 drink.rel:
 	cp drink.rel.sample drink.rel
@@ -37,7 +42,7 @@ release: compile drink.rel
 	erl -eval 'case systools:make_script("drink", [no_module_tests, local, {path, ["ebin", "$(YAWS_EBIN)"]}]) of ok -> halt(0); error -> halt(1) end.' -noshell
 
 clean:
-	rm -f ebin/*.beam priv/epam priv/ewebauth drink.boot drink.script erl_crash.dump drink.config
+	rm -f ebin/*.beam priv/epam priv/ewebauth drink.boot drink.script erl_crash.dump drink.config MnesiaCore.*
 
 run: release drink.config
 	mkdir -p log web_log

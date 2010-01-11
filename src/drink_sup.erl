@@ -26,8 +26,6 @@
 -module (drink_sup).
 -behaviour (supervisor).
 
--include ("drink_config.hrl").
-
 -export ([start/0, start_link/1, init/1]).
 
 start () ->
@@ -37,11 +35,29 @@ start_link (Args) ->
 	supervisor:start_link({local,?MODULE}, ?MODULE, Args).
 
 init ([]) ->
-    {ok, Bin} = file:read_file(filename:join(code:priv_dir(drink), "dbpass")),
-    LogDBPassword = binary_to_list(Bin),
+	DBPassFile = filename:join(code:priv_dir(drink), "dbpass"),
+	case filelib:is_file(DBPassFile) of
+	    true ->
+		{ok, LogDBServer} = application:get_env(log_db_server),
+		{ok, LogDBUser} = application:get_env(log_db_user),
+		{ok, LogDBDatabase} = application:get_env(log_db_database),
+		{ok, Bin} = file:read_file(DBPassFile),
+		LogDBPassword = binary_to_list(Bin),
+		LogDBSpec = [{mysql_conn,
+		    {mysql, start_link, [drink_log, LogDBServer, undefined, 
+		     LogDBUser, LogDBPassword, LogDBDatabase, fun mysql_log/4]},
+		    permanent,
+		    100,
+		    worker,
+		    [mysql]}];
+	    _ ->
+		error_logger:error_msg("Warning: Log DB Password missing, skipping log db!~n"),
+		LogDBSpec = []
+	end,
+
 	{ok, {{one_for_one, 10, 3},  % One for one restart, shutdown after 10 restarts within 3 seconds
 		  [{machine_listener,    % Our first child, the drink_machine_listener
-			{gen_listener, start_link, [?MACHINE_LISTEN_PORT, {drink_machine_comm, start_link, []}]},
+			{gen_listener, start_link, [drink_app:get_port(machine_listen_port), {drink_machine_comm, start_link, []}]},
 			permanent,			 % Always restart
 			100,				 % Allow 10 seconds for it to shutdown
 			worker,				 % It isn't a supervisor
@@ -69,14 +85,14 @@ init ([]) ->
                     [eldap]},
 		
 		   {sunday_server_listener,
-		    {gen_listener, start_link, [?SUNDAY_SERVER_PORT, {sunday_server, start_link, []}]},
+		    {gen_listener, start_link, [drink_app:get_port(sunday_server_port), {sunday_server, start_link, []}]},
 		    permanent,
 		    100,
 		    worker,
 		    [gen_listener]},
 		    
 		   {finger_server_listener,
-		    {gen_listener, start_link, [?FINGER_SERVER_PORT, {finger_server, start_link, []}]},
+		    {gen_listener, start_link, [drink_app:get_port(finger_server_port), {finger_server, start_link, []}]},
 		    permanent,
 		    100,
 		    worker,
@@ -89,29 +105,15 @@ init ([]) ->
             worker,
             [epam]},
             
-           {mysql_conn,
-            {mysql, start_link, [drink_log, ?LOG_DB_SERVER, undefined, 
-                                 ?LOG_DB_USERNAME, LogDBPassword, ?LOG_DB_DATABASE, fun mysql_log/4]},
-            permanent,
-            100,
-            worker,
-            [mysql]},
-            
            {drink_web_events,
             {drink_web_events, start_link, []},
             permanent,
             100,
             worker,
             [drink_web_events]}
-		   
-            %          {web_server,
-            % {drink_web, start_link, []},
-            % permanent,
-            % 100,
-            % worker,
-            % [drink_web]}
-		  ]
+		  ] ++ LogDBSpec
 		}}.
 
+% Logging function for the mysql module
 mysql_log(_Module, _Line, _Level, _Fun) ->
     ok.

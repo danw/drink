@@ -1,6 +1,17 @@
 [{drink,
         [{docroot, "PATH/docroot"},
-		 {weblogs, "PATH/web_log"}]
+	 {weblogs, "PATH/web_log"},
+	 {servername, "HOSTNAME"},
+	% Port offset, when not running as root and restricted ports are unavailable
+	 {portoffset, 42000},
+	 {web_port, 80},
+	 {secure_web_port, 443},
+	 {machine_listen_port, 4343},
+	 {sunday_server_port, 4242},
+	 {finger_server_port, 79},
+	 {log_db_server, "db.csh.rit.edu"},
+	 {log_db_user, "drink"},
+	 {log_db_database, "drink"}]
 },
 {sasl,
         [{sasl_error_logger, false},

@@ -55,6 +55,20 @@ init ([]) ->
 		LogDBSpec = []
 	end,
 
+	LdapFile = filename:join(code:priv_dir(drink), "eldap.conf"),
+	case filelib:is_file(LdapFile) of
+	    true ->
+		LdapSpec = [{eldap_user,
+                    {eldap, start_link, ["user"]},
+                     permanent,
+                     100,
+                     worker,
+                     [eldap]}];
+	    false ->
+		error_logger:error_msg("Warning: Ldap Config missing, skipping ldap user info!~n"),
+		LdapSpec = []
+	end,
+
 	{ok, {{one_for_one, 10, 3},  % One for one restart, shutdown after 10 restarts within 3 seconds
 		  [{machine_listener,    % Our first child, the drink_machine_listener
 			{gen_listener, start_link, [drink_app:get_port(machine_listen_port), {drink_machine_comm, start_link, []}]},
@@ -77,13 +91,6 @@ init ([]) ->
 		    worker,				% Not a supervisor
 		    [user_auth]},		% Uses the user_auth Module
 
-		   {eldap_user,
-                    {eldap, start_link, ["user"]},
-                    permanent,
-                    100,
-                    worker,
-                    [eldap]},
-		
 		   {sunday_server_listener,
 		    {gen_listener, start_link, [drink_app:get_port(sunday_server_port), {sunday_server, start_link, []}]},
 		    permanent,
@@ -111,7 +118,7 @@ init ([]) ->
             100,
             worker,
             [drink_web_events]}
-		  ] ++ LogDBSpec
+		  ] ++ LogDBSpec ++ LdapSpec
 		}}.
 
 % Logging function for the mysql module

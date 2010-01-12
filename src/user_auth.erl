@@ -26,7 +26,7 @@
 -module (user_auth).
 -behaviour (gen_server).
 
--export ([start_link/0]).
+-export ([start_link/1]).
 -export ([init/1]).
 -export ([handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 -export ([user/1, user/2, auth/1, auth/2, admin/2, can_admin/1, 
@@ -36,21 +36,23 @@
 -include ("user.hrl").
 -include ("drink_mnesia.hrl").
 
--record (uastate, {reftable,usertable}).
+-record (uastate, {reftable,usertable,userinfo_mod}).
 
 %%%%%%%%%%%%%%%%%%%%%%%%
 % Gen_Server Callbacks %
 %%%%%%%%%%%%%%%%%%%%%%%%
-start_link () ->
-	gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+start_link (UserInfoMod) ->
+	gen_server:start_link({local, ?MODULE}, ?MODULE, UserInfoMod, []).
 
-init ([]) ->
+init (UserInfoMod) ->
 	process_flag(trap_exit, true),
 	RefTable = ets:new(ref2user, [set, private]),
 	UserTable = ets:new(userinfo, [set, private, {keypos, 2}]),
+	ok = UserInfoMod:init(),
 	{ok, #uastate{
 	    reftable = RefTable,
-            usertable = UserTable}}.
+            usertable = UserTable,
+	    userinfo_mod = UserInfoMod}}.
 
 handle_call ({user, Username}, _From, State) when is_list(Username) ->
 	case get_user(Username, State) of
@@ -316,49 +318,6 @@ valid_ibutton(IButton) when is_list(IButton), length(IButton) =:= 16 ->
 valid_ibutton(_) ->
     {error, bad_ibutton}.
 
-ldap_attribute_val("ibutton", undefined) ->
-    [];
-ldap_attribute_val("ibutton", Val) ->
-	Val;
-ldap_attribute_val("drinkAdmin", undefined) ->
-    false;
-ldap_attribute_val("drinkAdmin", Val) ->
-	case hd(hd(Val)) of
-		$1 -> true;
-		$0 -> false
-	end;
-ldap_attribute_val("drinkBalance", undefined) ->
-    0;
-ldap_attribute_val("drinkBalance", Val) ->
-	{Int, _Extra} = string:to_integer(hd(Val)),
-	Int;
-ldap_attribute_val(_Attr, Val) ->
-	hd(Val).
-
-val_to_ldap_attr(credits, Val) ->
-    integer_to_list(Val);
-val_to_ldap_attr(admin, Val) ->
-    case Val of
-        true ->
-            "1";
-        false ->
-            "0"
-    end;
-val_to_ldap_attr(ibutton, Val) ->
-    Val.
-
-ldap_attribute(Attr, {eldap_entry, _Dn, Attrs}) ->
-	ldap_attribute(Attr, Attrs);
-ldap_attribute(Attr, []) ->
-	ldap_attribute_val(Attr, undefined);
-ldap_attribute(Attr, [{Name, ValueArr}|T]) ->
-	case string:equal(Attr, Name) of
-		true ->
-			ldap_attribute_val(Attr, ValueArr);
-		false ->
-			ldap_attribute(Attr, T)
-	end.
-
 deduct(UserInfo, Cost, MoneyReason, State) when is_tuple(UserInfo) ->
 	case get_user(UserInfo#user.username, State) of
 		{ok, User} ->
@@ -372,7 +331,7 @@ deduct(UserInfo, Cost, MoneyReason, State) when is_tuple(UserInfo) ->
 					    reason = MoneyReason,
 					    admin = UserInfo#user.adminuser
 					},
-					case catch ldap_set_credits(NewUserInfo) of
+					case catch (State#uastate.userinfo_mod):set_credits(NewUserInfo) of
 					    ok ->
         					ets:insert(State#uastate.usertable, NewUserInfo),
         					drink_mnesia:log_money(MoneyLog),
@@ -404,7 +363,7 @@ refund(UserInfo, Amount, MoneyReason, State) when is_tuple(UserInfo) ->
 			    admin = UserInfo#user.adminuser,
 			    direction = in
 			},
-			case catch ldap_set_credits(NewUserInfo) of
+			case catch (State#uastate.userinfo_mod):set_credits(NewUserInfo) of
 			    ok ->
         			ets:insert(State#uastate.usertable, NewUserInfo),
         			drink_mnesia:log_money(MoneyLog),
@@ -427,7 +386,7 @@ user_set_admin(UserInfo, Admin, State) when is_tuple(UserInfo) ->
             case get_user(UserInfo#user.username, State) of
                 {ok, User} ->
                     NewUserInfo = User#user{admin = Admin},
-                    case catch ldap_set_admin(NewUserInfo) of
+                    case catch (State#uastate.userinfo_mod):set_admin(NewUserInfo) of
                         ok ->
                             ets:insert(State#uastate.usertable, NewUserInfo),
                             {ok, NewUserInfo};
@@ -449,7 +408,7 @@ user_add_ibutton(UserInfo, IButton, State) when is_tuple(UserInfo) ->
             case get_user(UserInfo#user.username, State) of
                 {ok, User} ->
                     NewUserInfo = User#user{ibuttons=User#user.ibuttons ++ [IButton]},
-                    case catch ldap_add_ibutton(NewUserInfo#user.username, IButton) of
+                    case catch (State#uastate.userinfo_mod):add_ibutton(NewUserInfo#user.username, IButton) of
                         ok ->
                             ets:insert(State#uastate.usertable, NewUserInfo),
                             {ok, NewUserInfo};
@@ -471,7 +430,7 @@ user_del_ibutton(UserInfo, IButton, State) when is_tuple(UserInfo) ->
             case lists:member(IButton, User#user.ibuttons) of
                 true ->
                     NewUserInfo = User#user{ibuttons=User#user.ibuttons -- [IButton]},
-                    case catch ldap_del_ibutton(NewUserInfo#user.username, IButton) of
+                    case catch (State#uastate.userinfo_mod):del_ibutton(NewUserInfo#user.username, IButton) of
                         ok ->
                             ets:insert(State#uastate.usertable, NewUserInfo),
                             {ok, NewUserInfo};
@@ -560,29 +519,10 @@ create_user_ref(UserInfo, Perms, Admin, State) when is_tuple(UserInfo) ->
 create_user_ref(User, Perms, State) ->
     create_user_ref(User, Perms, nil, State).
 
-get_ldap_user(Attr, Value) when is_list(Attr), is_list(Value) ->
-	Base = {base, "ou=users,dc=csh,dc=rit,dc=edu"},
-	Scope = {scope, eldap:singleLevel()},
-	Filter = {filter, eldap:equalityMatch(Attr, Value)},
-	case eldap:search(eldap_user, [Base, Scope, Filter]) of
-		{eldap_search_result, [ResultList], []} ->
-		    Username = ldap_attribute("uid", ResultList),
-			Admin = ldap_attribute("drinkAdmin", ResultList),
-			Credits = ldap_attribute("drinkBalance", ResultList),
-			IButtons = ldap_attribute("ibutton", ResultList),
-			{ok, #user{username=Username,admin=Admin,credits=Credits,ibuttons=IButtons}};
-		{eldap_search_result, [], []} ->
-		    {error, invalid_user};
-		{error, Reason} ->
-			{error, Reason};
-		Reason ->
-			{error, Reason}
-	end.
-
 get_user(Username, State) when is_list(Username) ->
 	case ets:lookup(State#uastate.usertable, Username) of
 		[] ->
-			case get_ldap_user("uid", Username) of
+			case (State#uastate.userinfo_mod):get_user(username, Username) of
 				{ok, UserInfo} ->
 					ets:insert(State#uastate.usertable, UserInfo),
 					{ok, UserInfo};
@@ -594,7 +534,7 @@ get_user(Username, State) when is_list(Username) ->
 	end.
 
 get_user_from_ibutton(Ibutton, State) when is_list(Ibutton) ->
-    case get_ldap_user("ibutton", Ibutton) of
+    case (State#uastate.userinfo_mod):get_user(ibutton, Ibutton) of
         {ok, UserInfo} ->
             ets:insert(State#uastate.usertable, UserInfo),
             {ok, UserInfo};
@@ -610,22 +550,3 @@ check_pass(User, Pass) ->
             false
     end.
 
-ldap_set_credits(UserInfo) ->
-    eldap:modify(eldap_user, 
-        "uid=" ++ UserInfo#user.username ++ ",ou=users,dc=csh,dc=rit,dc=edu",
-        [eldap:mod_replace("drinkBalance", [val_to_ldap_attr(credits, UserInfo#user.credits)])]).
-
-ldap_set_admin(UserInfo) ->
-    eldap:modify(eldap_user,
-        "uid=" ++ UserInfo#user.username ++ ",ou=users,dc=csh,dc=rit,dc=edu",
-        [eldap:mod_replace("drinkAdmin", [val_to_ldap_attr(admin, UserInfo#user.admin)])]).
-
-ldap_add_ibutton(Username, IButton) ->
-    eldap:modify(eldap_user,
-        "uid=" ++ Username ++ ",ou=users,dc=csh,dc=rit,dc=edu",
-        [eldap:mod_add("ibutton", [val_to_ldap_attr(ibutton, IButton)])]).
-
-ldap_del_ibutton(Username, IButton) ->
-    eldap:modify(eldap_user,
-        "uid=" ++ Username ++ ",ou=users,dc=csh,dc=rit,dc=edu",
-        [eldap:mod_delete("ibutton", [val_to_ldap_attr(ibutton, IButton)])]).

@@ -58,6 +58,7 @@ init ([]) ->
 	LdapFile = filename:join(code:priv_dir(drink), "eldap.conf"),
 	case filelib:is_file(LdapFile) of
 	    true ->
+		UserAuthInfo = user_auth_ldap,
 		LdapSpec = [{eldap_user,
                     {eldap, start_link, ["user"]},
                      permanent,
@@ -66,6 +67,7 @@ init ([]) ->
                      [eldap]}];
 	    false ->
 		error_logger:error_msg("Warning: Ldap Config missing, skipping ldap user info!~n"),
+		UserAuthInfo = user_auth_mnesia,
 		LdapSpec = []
 	end,
 
@@ -85,7 +87,7 @@ init ([]) ->
 			[drink_machines_sup]}, % Uses the drink_machines_sup Module
 			
 		   {user_auth,			% The User Authenticator
-		    {user_auth, start_link, []},
+		    {user_auth, start_link, [UserAuthInfo]},
 		    permanent,			% Always restart
 		    100,				% Allow 100 seconds for it to shutdown
 		    worker,				% Not a supervisor

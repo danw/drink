@@ -27,7 +27,7 @@
 -behaviour (supervisor).
 
 -export ([start_link/0, init/1]).
--export ([machines/0, is_machine/1]).
+-export ([machines/0, is_machine/1, add/1]).
 
 -include ("drink_mnesia.hrl").
 -include_lib ("stdlib/include/qlc.hrl").
@@ -35,9 +35,14 @@
 start_link () ->
 	case supervisor:start_link({local, ?MODULE}, ?MODULE, []) of
 	    {ok, Pid} ->
-		MachineSpecs = case mnesia:transaction(fun() -> mnesia:all_keys(machine) end) of
+		case mnesia:transaction(fun() -> mnesia:all_keys(machine) end) of
 		    {atomic, Machines} ->
-			lists:foreach(fun(machine) -> supervisor:start_child(?MODULE, machine) end, Machines);
+			lists:foreach(fun(Machine) ->
+                            case supervisor:start_child(?MODULE, [Machine]) of
+                                {error, E} -> error_logger:error_msg("Error starting machine ~p: ~p~n", [Machine, E]);
+                                {ok, _} -> ok
+                            end
+                        end, Machines);
 	    	    _ ->
 			error_logger:error_msg("Failed to read machine table from mnesia! Not creating drink machine instances!~n")
 		end,
@@ -54,6 +59,22 @@ init ([]) ->
 			100,
 			worker,
 			[drink_machine]}]}}.
+
+add(Machine = #machine{}) ->
+	F = fun() ->
+	    mnesia:write(Machine)
+	end,
+	case mnesia:transaction(F) of
+	    {atomic, ok} ->
+		case supervisor:start_child(?MODULE, [Machine#machine.machine]) of
+                    {error, E} ->
+                        error_logger:error_msg("Error starting machine ~p: ~p~n", [Machine#machine.machine, E]),
+                        {error, E};
+                    {ok, _} -> ok
+		end;
+	    _ ->
+		{error, mnesia}
+	end.
 
 machine_names([{_,Pid,_,_}|T]) ->
 	{registered_name, Name} = process_info(Pid, registered_name),

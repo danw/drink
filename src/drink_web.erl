@@ -232,6 +232,43 @@ request(A, U, 'GET', userinfo) ->
     end;
 request(_, _, _, userinfo) -> error(wrong_method);
 
+request(A, U, 'POST', addmachine) ->
+    case user_auth:can_admin(U) of
+	true ->
+	    case {postvar(A, atom, "machine"),
+		  postvar(A, string, "name"),
+		  postvar(A, atom, "password"),
+		  postvar(A, ip, "public_ip"),
+		  postvar(A, atom, "available_sensor"),
+		  postvar(A, ip, "machine_ip"),
+		  postvar(A, atom, "allow_connect"),
+		  postvar(A, atom, "admin_only")} of
+		{{ok, MachineAtom},
+		 {ok, MachineName},
+		 {ok, MachinePassword},
+		 {ok, MachinePublicIP},
+		 {ok, MachineAvailableSensor},
+		 {ok, MachineIP},
+		 {ok, MachineAllowConnect},
+		 {ok, MachineAdminOnly}} ->
+		    case drink_machines_sup:add(#machine{machine = MachineAtom,
+							 password = MachinePassword,
+							 name = MachineName,
+							 public_ip = MachinePublicIP,
+							 available_sensor = MachineAvailableSensor,
+							 machine_ip = MachineIP,
+							 allow_connect = MachineAllowConnect,
+							 admin_only = MachineAdminOnly}) of
+			ok -> ok(true);
+			_  -> error(unknown_error)
+		    end;
+		_ -> error(invalid_args)
+	    end;
+	false ->
+	    error(permission_denied)
+    end;
+request(_, _, _, addmachine) -> error(wrong_method);
+
 request(_, _, 'GET', _) ->
     error(unknown_path);
 request(_, _, 'POST', _) ->
@@ -246,6 +283,18 @@ error(Reason) when is_atom(Reason) ->
     error(atom_to_list(Reason));
 error(Reason) ->
     [{content, "application/json", json:encode({struct, [{status, "error"}, {reason, Reason}]})}].
+
+postvar(A, ip, Name) ->
+    case yaws_api:postvar(A, Name) of
+	{ok, IP} -> inet:getaddr(IP, inet);
+	E -> E
+    end;
+postvar(A, atom, Name) ->
+    case yaws_api:postvar(A, Name) of
+	{ok, Atom} -> {ok, list_to_atom(Atom)};
+	E -> E
+    end;
+postvar(A, _, Name) -> yaws_api:postvar(A, Name).
 
 machines(_Admin, []) ->
     [];

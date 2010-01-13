@@ -505,7 +505,22 @@ drink.tabs.drink_machines = new (function() {
         
         return s;
     }
-    
+   
+    var machine_add_dom = function() {
+        var me = $('<form id="machine_add_form"> \
+            ID: <input type="text" class="machine_add_id" /> Name: <input type="text" class="machine_add_name" /> \
+            Password: <input type="text" class="machine_add_password" /><br /> \
+            Public IP: <input type="text" class="machine_add_public_ip" /> Machine IP: <input type="text" class="machine_add_machine_ip" /><br /> \
+            <input type="checkbox" class="machine_add_available_sensor" checked="checked">Available Sensor</input> \
+            <input type="checkbox" class="machine_add_allow_connect" checked="checked">Allow Connect</input> \
+            <input type="checkbox" class="machine_add_admin_only" checked="checked">Admin Only</input><br /> \
+            <input type="submit" value="Add Machine &raquo;" /> \
+            </form>');
+
+        me.submit(addMachine);
+        return me;
+    }
+ 
     var machine_edit_dom = function(machine) {
         var me = $('<form> \
             ID: <input type="text" class="machine_edit_id" /> Name: <input type="text" class="machine_edit_name" /> \
@@ -566,6 +581,11 @@ drink.tabs.drink_machines = new (function() {
         for(var machine in data) {
             machinelist.append(machine_dom(data[machine]));
         }
+        addLink = $('<a href="#">Add Machine</a>').click(function() {
+            $(this).replaceWith(machine_add_dom());
+            return false;
+        });
+	machinelist.append(addLink);
         
         self.user_update(drink.user.current());
     }
@@ -639,7 +659,30 @@ drink.tabs.drink_machines = new (function() {
         }
         drop(machine, slot, delay);
     }
-    
+
+    var addMachine = function() {
+        drink.ajax({
+            url: '/drink/addmachine',
+            type: 'POST',
+            data: {
+                machine: $('.machine_add_id').val(),
+                password: $('.machine_add_password').val(),
+                name: $('.machine_add_name').val(),
+                public_ip: $('.machine_add_public_ip').val(),
+                available_sensor: $('.machine_add_available_sensor').val() == "on",
+                machine_ip: $('.machine_add_machine_ip').val(),
+                allow_connect: $('.machine_add_allow_connect').val() == "on",
+                admin_only: $('.machine_add_admin_only').val() == "on"}
+        }, function() {
+            $('#machine_add_form').hide();
+            $('#machine_add_form input').val(false);
+            self.refresh();
+        }, function() {
+            alert("Error adding machine");
+        });
+        return false;
+    }
+
     var modMachine = function() {
         drink.log("Mod machine...");
     }

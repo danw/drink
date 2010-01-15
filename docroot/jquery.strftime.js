@@ -29,7 +29,7 @@
  * WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-$(function(){
+(function($){
 
 	var _defaults = {
 		'days_short' : [ 'Sun', 'Mon' , 'Tue' , 'Wed' , 'Thu' ,
@@ -231,4 +231,4 @@ $(function(){
 		});
 	};
  
-});
+})(jQuery);

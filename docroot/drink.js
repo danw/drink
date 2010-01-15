@@ -5,12 +5,6 @@
  * Licensed under the MIT (MIT-LICENSE.txt) license
  */
 
-$.ui.tabs.getter += " idx ui";
-$.extend($.ui.tabs.prototype, {
-    idx: function(str) {
-        return this.$tabs.index( this.$tabs.filter('[href$=' + str + ']').eq(0) );
-    }
-});
 $.fn.extend({
     unfocusColor: function(str, unColor, color) {
         $(this).focus(function() {
@@ -197,19 +191,27 @@ drink.user = new (function() {
 drink.tab = new (function() {
     var self = this;
     var tab_elem;
-    var selected;
+    var anchors;
+    var selectedTab;
+
+    var tabIndex = function(idx) {
+        if (typeof idx == 'string') {
+	    return anchors.index(anchors.filter('[href$=' + idx + ']'));
+	} else {
+	    var hash = anchors.eq(idx)[0].hash;
+	    return hash.slice(1, hash.length);
+	}
+    }
 
     var update_user = function(e, userinfo) {
-        tab_elem.data('disabled.tabs', []);
+        tab_elem.tabs('options', 'disabled', []);
         for(var tab in drink.tabs) {
-            var t = drink.tabs[tab];
-
-            if(t.admin_required && !userinfo.admin) {
-                idx = tab_elem.tabs('idx', tab);
+            if(drink.tabs[tab].admin_required && !userinfo.admin) {
+                idx = tabIndex(tab);
                 if(idx == -1)
                     drink.log("Broken! can't find tab");
 
-                if(selected == idx) {
+                if(selectedTab == idx) {
                     // TODO: figure out first legit tab to select
                     tab_elem.tabs('select', 0);
                 }
@@ -220,39 +222,33 @@ drink.tab = new (function() {
     }
     
     var tabSelected = function(e, ui) {
-        if(selected == tab_elem.data('selected.tabs')) {
-            drink.log("!!! Same tab selected");
-        }
+	var newTab = tabIndex(ui.index);//ui.tab.hash.slice(1, ui.tab.hash.length)
         
-        var newTab = false;
-        for(var tab in drink.tabs) {
-            if(tab_elem.tabs('idx', tab) == ui.index)
-                newTab = tab;
-        }
-        
-        if(!newTab) {
-            drink.log("!!! can't find tab");
-            return;
-        }
-        
-        if(drink.tabs[self.selectedTab].hide_tab && typeof drink.tabs[self.selectedTab].hide_tab == 'function')
+        if(drink.tabs[self.selectedTab] && drink.tabs[self.selectedTab].hide_tab && typeof drink.tabs[self.selectedTab].hide_tab == 'function')
             drink.tabs[self.selectedTab].hide_tab();
-        if(drink.tabs[newTab].show_tab && typeof drink.tabs[newTab].show_tab == 'function')
+        if(drink.tabs[newTab] && drink.tabs[newTab].show_tab && typeof drink.tabs[newTab].show_tab == 'function')
             drink.tabs[newTab].show_tab();
-        
-        selected = ui.index;
-        self.selectedTab = newTab;
+      
+	self.selectedTab = newTab;
+ 
+	return true;
     }
-    
-    this.selectedTab = '';
 
     this.init = function() {
-        tab_elem = $('#tabs > ul').tabs({cookie: {expires: 7, path: '/', secure: true}, cookieName: 'main'});
-        selected = tab_elem.data('selected.tabs');
-        for(var tab in drink.tabs)
-            if(tab_elem.tabs('idx', tab) == selected)
-                self.selectedTab = tab;
-        tab_elem.bind('tabsshow', tabSelected);
+        drink.log("Init Tabs");
+        for(var tab in drink.tabs) {
+            drink.log("... " + tab);
+            drink.tabs[tab].init();
+        }
+
+        drink.log("End Tabs");
+	anchors = $('#tabs ul:first li:has(a[href])').map(function() { return $('a', this)[0] });
+        tab_elem = $('#tabs').tabs( {
+		//cookie: {expires: 7, path: '/', secure: true}, cookieName: 'main';
+		selected: tabSelected,
+		show: tabSelected // Only for this call
+	});
+	tab_elem.unbind('tabsshow', tabSelected);
         update_user(null, drink.user.current());
         
         $(window).bind('user.drink', update_user);
@@ -262,16 +258,6 @@ drink.tab = new (function() {
                     drink.tabs[tab].user_update(userinfo);
             }
         });
-
-        drink.log("Init Tabs");
-        for(var tab in drink.tabs) {
-            drink.log("... " + tab);
-            drink.tabs[tab].init();
-        }
-        drink.log("End Tabs");
-        
-        if(drink.tabs[self.selectedTab].show_tab && typeof drink.tabs[self.selectedTab].show_tab == 'function')
-            drink.tabs[self.selectedTab].show_tab();
     }
     
     return this;
@@ -581,7 +567,7 @@ drink.tabs.drink_machines = new (function() {
         for(var machine in data) {
             machinelist.append(machine_dom(data[machine]));
         }
-        addLink = $('<a href="#">Add Machine</a>').click(function() {
+        addLink = $('<a id="machine_add_link" href="#">Add Machine</a>').click(function() {
             $(this).replaceWith(machine_add_dom());
             return false;
         });
@@ -696,7 +682,7 @@ drink.tabs.drink_machines = new (function() {
     
     this.user_update = function(userinfo) {
         var drops = $('#drink_machines .slotaction_drop');
-        var admin = $('#drink_machines .slotaction_edit, #drink_machines .slotaction_disable, #drink_machines .machine_edit');
+        var admin = $('#drink_machines .slotaction_edit, #drink_machines .slotaction_disable, #drink_machines .machine_edit, #machine_add_form, #machine_add_link');
         
         // todo - droppable
         drops.each(function() {

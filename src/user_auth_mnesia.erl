@@ -64,10 +64,28 @@ get_user(ibutton, Ibutton) ->
     {error, not_implemented}.
 
 set_credits(UserInfo) ->
-    {error, not_implemented}.
+    F = fun() ->
+        case mnesia:read(user, UserInfo#user.username) of
+            [User] -> mnesia:write(User#user{credits = UserInfo#user.credits});
+            E -> E
+        end
+    end,
+    case mnesia:transaction(F) of
+        {atomic, ok} -> ok;
+        E -> {error, E}
+    end.
 
 set_admin(UserInfo) ->
-    {error, not_implemented}.
+    F = fun() ->
+        case mnesia:read(user, UserInfo#user.username) of
+            [User] -> mnesia:write(User#user{admin = UserInfo#user.admin});
+            E -> E
+        end
+    end,
+    case mnesia:transaction(F) of
+        {atomic, ok} -> ok;
+        E -> {error, E}
+    end.
 
 add_ibutton(Username, IButton) ->
     {error, not_implemented}.

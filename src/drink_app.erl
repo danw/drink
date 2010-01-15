@@ -32,12 +32,6 @@
 -include ("yaws.hrl").
 
 start(_Type, StartArgs) ->
-	case mnesia:start() of
-		{error, _Reason} ->
-			drink_mnesia:initialize();
-		ok ->
-			ok
-	end,
 	case os:getenv("USER") of
 	    "root" ->
 		application:set_env(drink, portoffset, 0);
@@ -45,6 +39,7 @@ start(_Type, StartArgs) ->
 		% We won't have access to restricted ports :-/
 		ok
 	end,
+	drink_mnesia:initialize(),
 	yaws_conf(),
 	drink_sup:start_link(StartArgs).
 

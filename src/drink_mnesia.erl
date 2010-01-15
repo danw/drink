@@ -32,42 +32,66 @@
 -include ("user.hrl").
 
 initialize() ->
-	mnesia:create_schema([node()]),
-	mnesia:start(),
-	mnesia:create_table(machine, [
+	case mnesia:start() of
+		{error, _Reason} ->
+			mnesia:create_schema([node()]),
+			ok = mnesia:start();
+		ok -> ok
+	end,
+	case mnesia:create_table(machine, [
 		{disc_copies, [node()]},
 		{ram_copies, []},
 		{record_name, machine},
 		{index, [password]},
-		{attributes, record_info(fields, machine)}]),
-	mnesia:create_table(slot, [
+		{attributes, record_info(fields, machine)}]) of
+	    {atomic, ok} -> ok;
+	    {aborted, {already_exists, _}} -> ok;
+	    E -> error_logger:error_msg("Got mnesia error: ~p~n", [E])
+	end,
+	case mnesia:create_table(slot, [
 		{type, bag},
 		{disc_copies, [node()]},
 		{ram_copies, []},
 		{record_name, slot},
 		{index, [num]},
-		{attributes, record_info(fields, slot)}]),
-	mnesia:create_table(temperature, [
+		{attributes, record_info(fields, slot)}]) of
+	    {atomic, ok} -> ok;
+	    {aborted, {already_exists, _}} -> ok;
+	    Er -> error_logger:error_msg("Got mnesia error: ~p~n", [Er])
+	end,
+	case mnesia:create_table(temperature, [
 		{type, bag},
 		{disc_only_copies, [node()]},
 		{ram_copies, []},
 		{record_name, temperature},
 		{index, [time]},
-		{attributes, record_info(fields, temperature)}]),
-	mnesia:create_table(money_log, [
+		{attributes, record_info(fields, temperature)}]) of
+	    {atomic, ok} -> ok;
+	    {aborted, {already_exists, _}} -> ok;
+	    Err -> error_logger:error_msg("Got mnesia error: ~p~n", [Err])
+	end,
+	case mnesia:create_table(money_log, [
 		{type, bag},
 		{disc_only_copies, [node()]},
 		{ram_copies, []},
 		{record_name, money_log},
-		{index, [time, username, admin]},
-		{attributes, record_info(fields, money_log)}]),
-	mnesia:create_table(drop_log, [
+		{index, []},
+		{attributes, record_info(fields, money_log)}]) of
+	    {atomic, ok} -> ok;
+	    {aborted, {already_exists, _}} -> ok;
+	    Erro -> error_logger:error_msg("Got mnesia error: ~p~n", [Erro])
+	end,
+	case mnesia:create_table(drop_log, [
 		{type, bag},
 		{disc_only_copies, [node()]},
 		{ram_copies, []},
 		{record_name, drop_log},
 		{index, [time, username, slot, status]},
-		{attributes, record_info(fields, drop_log)}]).
+		{attributes, record_info(fields, drop_log)}]) of
+	    {atomic, ok} -> ok;
+	    {aborted, {already_exists, _}} -> ok;
+	    Error -> error_logger:error_msg("Got mnesia error: ~p~n", [Error])
+	end.
 
 mysql_init() ->
     mysql:prepare(log_temperature, <<"INSERT INTO temperature_log VALUES (?, ?, ?)">>),
@@ -89,7 +113,7 @@ mysql_init() ->
 
 log_drop(Drop) ->
     Status = io_lib:format("~w", [Drop#drop_log.status]),
-    case mysql:execute(drink_log, log_drop, [
+    case catch mysql:execute(drink_log, log_drop, [
                                 Drop#drop_log.machine,
                                 Drop#drop_log.slot,
                                 Drop#drop_log.username,
@@ -98,17 +122,17 @@ log_drop(Drop) ->
         {error, {no_such_statement, log_drop}} ->
             mysql_init(),
             log_drop(Drop);
-        {error, _MySqlRes} ->
+        {updated, _MySqlRes} ->
+            % todo: check if there are records in mnesia to move to mysql
+            ok;
+        _E ->
             case mnesia:transaction(fun() -> mnesia:write(Drop) end) of
                 {atomic, ok} ->
                     ok;
                 {aborted, Reason} ->
-                    error_logger:error_msg("Drop Log Error! ~p~n", Reason),
+                    error_logger:error_msg("Drop Log Error! ~p~n", [Reason]),
                     {error, Reason}
-            end;
-        {updated, _MySqlRes} ->
-            % todo: check if there are records in mnesia to move to mysql
-            ok
+            end
     end.
 
 log_money(Money) ->
@@ -118,7 +142,7 @@ log_money(Money) ->
         Else ->
             Else
     end,
-    case mysql:execute(drink_log, log_money, [
+    case catch mysql:execute(drink_log, log_money, [
                                 Money#money_log.time,
                                 Money#money_log.username,
                                 Admin,
@@ -128,44 +152,44 @@ log_money(Money) ->
         {error, {no_such_statement, log_money}} ->
             mysql_init(),
             log_money(Money);
-        {error, _MySqlRes} ->
+        {updated, _MySqlRes} ->
+            % todo: check if there are records in mnesia to move to mysql
+            ok;
+        _E ->
             case mnesia:transaction(fun() -> mnesia:write(Money) end) of
                 {atomic, ok} ->
                     ok;
                 {aborted, Reason} ->
-                    error_logger:error_msg("Money Log Error! ~p~n", Reason),
+                    error_logger:error_msg("Money Log Error! ~p~n", [Reason]),
                     {error, Reason}
-            end;
-        {updated, _MySqlRes} ->
-            % todo: check if there are records in mnesia to move to mysql
-            ok
+            end
     end.
 
 log_temperature(Temperature) ->
-    case mysql:execute(drink_log, log_temperature, [
+    case catch mysql:execute(drink_log, log_temperature, [
                                 Temperature#temperature.machine,
                                 Temperature#temperature.time,
                                 Temperature#temperature.temperature]) of
         {error, {no_such_statement, log_temperature}} ->
             mysql_init(),
             log_temperature(Temperature);
-        {error, _MySqlRes} ->
+        {updated, _MySqlRes} ->
+            % todo: check if there are records in mnesia to move to mysql
+            ok;
+        _E ->
             case mnesia:transaction(fun() -> mnesia:write(Temperature) end) of
                 {atomic, ok} ->
                     ok;
                 {aborted, Reason} ->
-                    error_logger:error_msg("Temperature Log Error! ~p~n", Reason),
+                    error_logger:error_msg("Temperature Log Error! ~p~n", [Reason]),
                     {error, Reason}
-            end;
-        {updated, _MySqlRes} ->
-            % todo: check if there are records in mnesia to move to mysql
-            ok
+            end
     end.
 
 get_logs(UserRef, Index, Count) when is_reference(UserRef), is_integer(Index), is_integer(Count) ->
     case {user_auth:can_admin(UserRef), user_auth:user_info(UserRef)} of
         {false, {ok, UserInfo = #user{}}} ->
-            case mysql:execute(drink_log, get_logs_user, [UserInfo#user.username, Index, Count]) of
+            case catch mysql:execute(drink_log, get_logs_user, [UserInfo#user.username, Index, Count]) of
                 {error, {no_such_statement, get_logs_user}} ->
                     mysql_init(),
                     get_logs(UserRef, Index, Count);
@@ -181,7 +205,7 @@ get_logs(UserRef, Index, Count) when is_reference(UserRef), is_integer(Index), i
     end.
 
 get_logs(Index, Count) when is_integer(Index), is_integer(Count) ->
-    case mysql:execute(drink_log, get_logs, [Index, Count]) of
+    case catch mysql:execute(drink_log, get_logs, [Index, Count]) of
         {error, {no_such_statement, get_logs}} ->
             mysql_init(),
             get_logs(Index, Count);
@@ -193,7 +217,7 @@ get_logs(Index, Count) when is_integer(Index), is_integer(Count) ->
 
 get_temps(Since, Seconds) when is_tuple(Since), is_integer(Seconds) ->
     Until = calendar:gregorian_seconds_to_datetime(Seconds + calendar:datetime_to_gregorian_seconds(Since)),
-    case mysql:execute(drink_log, get_temps, [Since, Until]) of
+    case catch mysql:execute(drink_log, get_temps, [Since, Until]) of
         {error, {no_such_statement, get_temps}} ->
             mysql_init(),
             get_temps(Since, Seconds);

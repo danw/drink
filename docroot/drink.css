@@ -13,7 +13,7 @@
     padding-right: 0.5em;
 }
 
-#drink_machines tr.disabled {
+/*#drink_machines tr.disabled {
     background-color: lightgray;
 }
 
@@ -42,7 +42,7 @@ table {
 
 tbody tr td:first-child {
     border-left-width: 1px;
-}
+} */
 
 #user_admin_mod_form table {
     border-width: 0;
@@ -72,53 +72,6 @@ tbody tr td:first-child {
     border-width: 0;
 }
 
-/*
-.ui-tabs-hide {
-    display: none;
-}
-
-.ui-tabs-nav {
-    border-width: 0 0 0 1px;
-    border-style: solid;
-    border-color: black; */
-/*    border: 1px solid black;*/
-/*    height: 28px;
-    padding: 0;
-}
-
-.ui-tabs-nav li {
-    float: left;
-    width: 140px;
-    text-align: center;
-    padding: 0;
-    margin: 0;
-    list-style: none;
-    border-width: 1px 1px 1px 0;
-    border-style: solid;
-    border-color: black;
-    line-height: 18px;
-    font-size: 18px;
-    font-family: sans-serif;
-}
-
-.ui-tabs-nav li a {
-    text-decoration: none;
-    display: block;
-    margin: 0;
-    padding: 4px;
-    height: 18px;
-}
-
-.ui-tabs-nav .ui-tabs-selected a {
-    background-color: #aaaaff;
-}
-
-.ui-tabs-nav .ui-tabs-disabled a {
-    background-color: #ddd;
-    color: #999;
-    cursor: default;
-}*/
-
 #logcontainer .type, #logcontainer .time, #logcontainer .username {
     text-align: center;
 }
@@ -131,19 +84,8 @@ tbody tr td:first-child {
     text-decoration: none;
 }
 
-.slotaction_edit, .slotaction_drop, .slotaction_disable, a.machine_edit {
+.slotaction_edit, .slotaction_drop, .slotaction_disable {
     cursor: pointer;
     color: darkblue;
 }
 
-#drink_machines li.disconnected {
-    background-color: lightgray;
-}
-
-#drink_machines li h3 {
-    margin: 0;
-}
-
-#drink_machines li {
-    margin-bottom: 0.5em;
-}

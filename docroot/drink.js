@@ -26,6 +26,29 @@ $.fn.extend({
     }
 });
 
+$.fn.extend({
+    collapsible: function(content) {
+        var self = $(this);
+        var hidden = undefined;
+        self.click(function() {
+            if (hidden === undefined)
+                hidden = (content.css('display') == 'none');
+            if (hidden)
+            {
+                self.removeClass('ui-corner-bottom ui-state-default').addClass('ui-state-active');
+                content.show('blind');
+            }
+            else
+            {
+                content.hide('blind', function() {
+                    self.removeClass('ui-state-active').addClass('ui-corner-bottom ui-state-default');
+                });
+            }
+            hidden = !hidden;
+        });
+    }
+});
+
 $(document).ready(function() {
     drink.user.init();
     
@@ -222,16 +245,16 @@ drink.tab = new (function() {
     }
     
     var tabSelected = function(e, ui) {
-	var newTab = tabIndex(ui.index);//ui.tab.hash.slice(1, ui.tab.hash.length)
+        var newTab = tabIndex(ui.index);//ui.tab.hash.slice(1, ui.tab.hash.length)
         
         if(drink.tabs[self.selectedTab] && drink.tabs[self.selectedTab].hide_tab && typeof drink.tabs[self.selectedTab].hide_tab == 'function')
             drink.tabs[self.selectedTab].hide_tab();
         if(drink.tabs[newTab] && drink.tabs[newTab].show_tab && typeof drink.tabs[newTab].show_tab == 'function')
             drink.tabs[newTab].show_tab();
       
-	self.selectedTab = newTab;
+        self.selectedTab = newTab;
  
-	return true;
+        return true;
     }
 
     this.init = function() {
@@ -242,13 +265,13 @@ drink.tab = new (function() {
         }
 
         drink.log("End Tabs");
-	anchors = $('#tabs ul:first li:has(a[href])').map(function() { return $('a', this)[0] });
+        anchors = $('#tabs ul:first li:has(a[href])').map(function() { return $('a', this)[0] });
         tab_elem = $('#tabs').tabs( {
-		//cookie: {expires: 7, path: '/', secure: true}, cookieName: 'main';
-		selected: tabSelected,
-		show: tabSelected // Only for this call
-	});
-	tab_elem.unbind('tabsshow', tabSelected);
+            //cookie: {expires: 7, path: '/', secure: true}, cookieName: 'main';
+            selected: tabSelected,
+            show: tabSelected // Only for this call
+        });
+        tab_elem.unbind('tabsshow', tabSelected);
         update_user(null, drink.user.current());
         
         $(window).bind('user.drink', update_user);
@@ -444,6 +467,7 @@ drink.tabs.drink_machines = new (function() {
     var last_update = false;
     var refresh_interval = 60;
     
+    var machine_list = {};
     var machine_info = false;
     
     var pretty_available = function(count) {
@@ -456,59 +480,63 @@ drink.tabs.drink_machines = new (function() {
         }
     }
 
-    var slot_dom = function(machine, slot) {
-        var droppable = false;
-        droppable = (slot.available && machine.connected && (drink.user.current().credits >= slot.price));
-
-        var s = $('<tr><td class="slotnum"></td><td class="slotname"></td><td class="slotprice"></td><td class="slotavail"></td><td class="slotactions"></td></tr>');
+    // var slot_dom = function(machine, slot) {
+    //     var droppable = false;
+    //     droppable = (slot.available && machine.connected && (drink.user.current().credits >= slot.price));
+    // 
+    //     var s = $('<tr><td class="slotnum"></td><td class="slotname"></td><td class="slotprice"></td><td class="slotavail"></td><td class="slotactions"></td></tr>');
+    //     
+    //     if(slot.disabled)
+    //         s.addClass('disabled');
+    //     s.data('machine', machine.machineid);
+    //     s.data('slotnum', slot.num);
+    //     
+    //     s.find('.slotnum').text(slot.num);
+    //     s.find('.slotname').text(slot.name);
+    //     s.find('.slotprice').text(slot.price);
+    //     s.find('.slotavail').text(pretty_available(slot.available));
+    //     var actions = s.find('.slotactions');
+    //     
+    //     $('<a class="slotaction_drop"> Drop </a>').appendTo(actions).click(function() {
+    //         slot = $(this).parents('tr').eq(0);
+    //         dropDelayAsk(slot.data('machine'), slot.data('slotnum'));
+    //         return false;
+    //     });
+    //     $('<a class="slotaction_edit"> Edit </a>').appendTo(actions).click(function() {
+    //         slot = $(this).parents('tr').eq(0);
+    //         editSlot(slot.data('machine'), slot.data('slotnum'));
+    //         return false;
+    //     });
+    //     $('<a class="slotaction_disable"></a>').text(slot.disabled ? ' Enable ' : ' Disable ').appendTo(actions).click(function() {
+    //         slot = $(this).parents('tr').eq(0);
+    //         toggleDisabled(slot.data('machine'), slot.data('slotnum'));
+    //         return false;
+    //     });
+    //     
+    //     return s;
+    // }
+    
+    var Machine = function(machineList, info) {
+        var self = this;
+        var visible = false;
         
-        if(slot.disabled)
-            s.addClass('disabled');
-        s.data('machine', machine.machineid);
-        s.data('slotnum', slot.num);
+        var Slot = function(slot) {
+            var machine = self;
+            var self = this;
+            
+            
+        }
         
-        s.find('.slotnum').text(slot.num);
-        s.find('.slotname').text(slot.name);
-        s.find('.slotprice').text(slot.price);
-        s.find('.slotavail').text(pretty_available(slot.available));
-        var actions = s.find('.slotactions');
+        var machDom = $('<div class="machine_title ui-helper-reset ui-state-default ui-widget-header ui-corner-top"> \
+                <a href="#" class="machine_remove ui-helper-reset ui-icon ui-icon-trash" style="float:right" title="Delete">remove</a> \
+                <a href="#" class="machine_edit ui-helper-reset ui-icon ui-icon-pencil" style="float:right" title="Edit">edit</a> \
+                <h3 class="ui-helper-reset"></h3></div> \
+            <div class="machine_contents ui-helper-reset ui-widget-content ui-corner-bottom"> \
+            <div class="machine_edit_form"></div>\
+            <table><thead><tr><th>Slot Num</th><th>Name</th><th>Price</th><th>Available</th><th>Actions</th></tr></thead> \
+            <tbody></tbody></table></div>');
         
-        $('<a class="slotaction_drop"> Drop </a>').appendTo(actions).click(function() {
-            slot = $(this).parents('tr').eq(0);
-            dropDelayAsk(slot.data('machine'), slot.data('slotnum'));
-            return false;
-        });
-        $('<a class="slotaction_edit"> Edit </a>').appendTo(actions).click(function() {
-            slot = $(this).parents('tr').eq(0);
-            editSlot(slot.data('machine'), slot.data('slotnum'));
-            return false;
-        });
-        $('<a class="slotaction_disable"></a>').text(slot.disabled ? ' Enable ' : ' Disable ').appendTo(actions).click(function() {
-            slot = $(this).parents('tr').eq(0);
-            toggleDisabled(slot.data('machine'), slot.data('slotnum'));
-            return false;
-        });
-        
-        return s;
-    }
-   
-    var machine_add_dom = function() {
-        var me = $('<form id="machine_add_form"> \
-            ID: <input type="text" class="machine_add_id" /> Name: <input type="text" class="machine_add_name" /> \
-            Password: <input type="text" class="machine_add_password" /><br /> \
-            Public IP: <input type="text" class="machine_add_public_ip" /> Machine IP: <input type="text" class="machine_add_machine_ip" /><br /> \
-            <input type="checkbox" class="machine_add_available_sensor" checked="checked">Available Sensor</input> \
-            <input type="checkbox" class="machine_add_allow_connect" checked="checked">Allow Connect</input> \
-            <input type="checkbox" class="machine_add_admin_only" checked="checked">Admin Only</input><br /> \
-            <input type="submit" value="Add Machine &raquo;" /> \
-            </form>');
-
-        me.submit(addMachine);
-        return me;
-    }
- 
-    var machine_edit_dom = function(machine) {
-        var me = $('<form> \
+        var editDom = $('<form> \
             ID: <input type="text" class="machine_edit_id" /> Name: <input type="text" class="machine_edit_name" /> \
             Password: <input type="text" class="machine_edit_password" /><br /> \
             Public IP: <input type="text" class="machine_edit_public_ip" /> Machine IP: <input type="text" class="machine_edit_machine_ip" /><br /> \
@@ -517,61 +545,108 @@ drink.tabs.drink_machines = new (function() {
             <input type="checkbox" class="machine_edit_admin_only" value="true">Admin Only</input><br /> \
             </form>');
         
-        me.find('.machine_edit_id').val(machine.machineid);
-        me.find('.machine_edit_name').val(machine.name);
-        me.find('.machine_edit_password').val(machine.password);
-        me.find('.machine_edit_public_ip').val(machine.public_ip);
-        me.find('.machine_edit_machine_ip').val(machine.machine_ip);
-        if(machine.available_sensor)
-            me.find('.machine_edit_available_sensor').attr('checked', 'checked');
-        if(machine.allow_connect)
-            me.find('.machine_edit_allow_connect').attr('checked', 'checked');
-        if(machine.admin_only)
-            me.find('.machine_edit_admin_only').attr('checked', 'checked');
-        me.submit(modMachine);
-        
-        return me;
-    }
-
-    var machine_dom = function(machine) {
-        var m = $('<li><h3></h3><a class="machine_edit">(edit)</a> \
-            <div class="machine_edit_form"></div>\
-            <table><thead><tr><th>Slot Num</th><th>Name</th><th>Price</th><th>Available</th><th>Actions</th></tr></thead> \
-            <tbody></tbody></table></li>');
-        
-        m.data('machine', machine.machineid);
-        
-        m.find('h3').text(machine.name);
-        if(!machine.connected)
-            m.addClass('disconnected');
-            
-        m.find('.machine_edit').click(function() {
-            $(this).parents().eq(0).find('.machine_edit_form').toggle();
+        editDom.submit(modMachine);
+        machDom.find('.machine_edit_form').append(editDom);
+        machDom.find('.machine_edit_form').hide();
+        machDom.filter('.machine_title').collapsible(machDom.filter('.machine_contents'));
+        machDom.find('.machine_edit').click(function() {
+            machDom.find('.machine_edit_form').toggle('blind');
+            return false;
         });
-        m.find('.machine_edit_form').append(machine_edit_dom(machine)).css('display', 'none');
+        machDom.find('.machine_remove').click(function() {
+            return false;
+        })
         
-        var slots = m.find('tbody');
-        for(var slotnum in machine.slots) {
-            machine.slots[slotnum].num = slotnum;
-            slots.append(slot_dom(machine, machine.slots[slotnum]));
+        this.add = function(list) {
+            machineList.append(machDom);
+            visible = true;
+        }
+        
+        this.remove = function(list) {
+            machDom.hide('fade', function() { machDom.remove() });
+            visible = false;
+        }
+        
+        this.updateInfo = function(info) {
+            self.info = info;
+
+            machDom.find('h3').text(info.name);
+            
+            if(!info.connected)
+            {
+                machDom.filter('.machine_contents').hide()
+                machDom.filter('.machine_title').addClass('ui-corner-bottom');
+            }
+
+            editDom.find('.machine_edit_id').val(info.machineid);
+            editDom.find('.machine_edit_name').val(info.name);
+            editDom.find('.machine_edit_password').val(info.password);
+            editDom.find('.machine_edit_public_ip').val(info.public_ip);
+            editDom.find('.machine_edit_machine_ip').val(info.machine_ip);
+            if(info.available_sensor)
+                editDom.find('.machine_edit_available_sensor').attr('checked', 'checked');
+            else
+                editDom.find('.machine_edit_available_sensor');
+            if(info.allow_connect)
+                editDom.find('.machine_edit_allow_connect').attr('checked', 'checked');
+            else
+                editDom.find('.machine_edit_allow_connect');
+            if(info.admin_only)
+                editDom.find('.machine_edit_admin_only').attr('checked', 'checked');
+            else
+                editDom.find('.machine_edit_admin_only');
+            
+            // var slots = m.find('tbody');
+            // for(var slotnum in machine.slots) {
+            //     machine.slots[slotnum].num = slotnum;
+            //     slots.append(slot_dom(machine, machine.slots[slotnum]));
+            // }
         }
 
-        return m;
+        this.updateInfo(info);
+        this.add(machineList);
+
+        return this;
+    }
+    
+    var machine_add_dom = function() {
+        var me = $('<div id="machine_add_div" class="ui-helper-reset ui-widget-content ui-helper-hidden ui-corner-bottom"> \
+            <form id="machine_add_form"> \
+            ID: <input type="text" class="machine_add_id" /> Name: <input type="text" class="machine_add_name" /> \
+            Password: <input type="text" class="machine_add_password" /><br /> \
+            Public IP: <input type="text" class="machine_add_public_ip" /> Machine IP: <input type="text" class="machine_add_machine_ip" /><br /> \
+            <input type="checkbox" class="machine_add_available_sensor" checked="checked">Available Sensor</input> \
+            <input type="checkbox" class="machine_add_allow_connect" checked="checked">Allow Connect</input> \
+            <input type="checkbox" class="machine_add_admin_only" checked="checked">Admin Only</input><br /> \
+            <input type="submit" value="Add Machine &raquo;" /> \
+            </form></div>');
+
+        me.find('form').submit(addMachine);
+        return me;
     }
     
     var gotMachines = function(data) {
         last_update = drink.time.nowUTC();
         
         machine_info = data;
-        var machinelist = $('#machines').empty();
+        var machinelist = $('#machines');
+        
         for(var machine in data) {
-            machinelist.append(machine_dom(data[machine]));
+            if (machine in machine_list)
+            {
+                machine_list[machine].updateInfo(data[machine])
+            }
+            else
+            {
+                machine_list[machine] = new Machine(machinelist, data[machine]);
+            }
         }
-        addLink = $('<a id="machine_add_link" href="#">Add Machine</a>').click(function() {
-            $(this).replaceWith(machine_add_dom());
-            return false;
-        });
-	machinelist.append(addLink);
+        for(var machine in machine_list) {
+            if (!(machine in data)) {
+                machine_list[machine].remove();
+                delete machine_list[machine];
+            }
+        }
         
         self.user_update(drink.user.current());
     }
@@ -682,7 +757,7 @@ drink.tabs.drink_machines = new (function() {
     
     this.user_update = function(userinfo) {
         var drops = $('#drink_machines .slotaction_drop');
-        var admin = $('#drink_machines .slotaction_edit, #drink_machines .slotaction_disable, #drink_machines .machine_edit, #machine_add_form, #machine_add_link');
+        var admin = $('#drink_machines .slotaction_edit, #drink_machines .slotaction_disable, #drink_machines .machine_edit, #machine_add_link');
         
         // todo - droppable
         drops.each(function() {
@@ -715,7 +790,10 @@ drink.tabs.drink_machines = new (function() {
     }
     
     this.init = function() {
-        
+        var m_a_link = $('<h4 class="ui-helper-reset ui-state-default ui-widget-header ui-corner-top ui-corner-bottom" id="machine_add_link">Add Machine</a>');
+        var m_a_dom = machine_add_dom();
+        $('#machines_holder').append(m_a_link).append(m_a_dom);
+        m_a_link.collapsible(m_a_dom);
     }
     
     return this;

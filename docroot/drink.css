@@ -1,5 +1,12 @@
+body {
+    /* WTF JQuery UI */
+	font-size: 62.5%;
+	font-family: "Trebuchet MS", "Helvetica", "Arial",  "Verdana", "sans-serif";
+}
+
 #header {
     height: 2em;
+    font-size: 150%;
 }
 
 #header p {
@@ -89,3 +96,20 @@ tbody tr td:first-child {
     color: darkblue;
 }
 
+div.machine_title, #machine_add_link {
+    margin-top: 0.2em;
+}
+
+div.machine_title.ui-state-active, #machine_add_link.ui-state-active {
+    border-bottom: 0 !important;
+}
+
+div.machine_contents, #machine_add_div {
+    border-top: 0;
+}
+
+.machine_title span.machine_title_span, #machine_add_link {
+    padding: 0.4em;
+    line-height: 1.4em;
+    display: block;
+}

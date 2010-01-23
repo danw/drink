@@ -1,7 +1,7 @@
 /*
  * Drink Web Interface
  *
- * Copyright 2008 Dan Willemsen
+ * Copyright 2008-2010 Dan Willemsen
  * Licensed under the MIT (MIT-LICENSE.txt) license
  */
 
@@ -36,13 +36,13 @@ $.fn.extend({
             if (hidden)
             {
                 self.removeClass('ui-corner-bottom ui-state-default').addClass('ui-state-active');
-                content.show('blind');
+                content.show('slide', { direction: 'up' });
             }
             else
             {
-                content.hide('blind', function() {
+                content.hide('slide', { direction: 'up', complete: function() {
                     self.removeClass('ui-state-active').addClass('ui-corner-bottom ui-state-default');
-                });
+                }});
             }
             hidden = !hidden;
         });
@@ -527,10 +527,10 @@ drink.tabs.drink_machines = new (function() {
             
         }
         
-        var machDom = $('<div class="machine_title ui-helper-reset ui-state-default ui-widget-header ui-corner-top"> \
-                <a href="#" class="machine_remove ui-helper-reset ui-icon ui-icon-trash" style="float:right" title="Delete">remove</a> \
-                <a href="#" class="machine_edit ui-helper-reset ui-icon ui-icon-pencil" style="float:right" title="Edit">edit</a> \
-                <h3 class="ui-helper-reset"></h3></div> \
+        var machDom = $('<div class="machine_title ui-helper-reset ui-helper-clearfix ui-state-default ui-widget-header ui-corner-top"> \
+                <a href="#" class="machine_remove" style="float:right" title="Delete">remove</a> \
+                <a href="#" class="machine_edit" style="float:right" title="Edit">edit</a> \
+                <span class="machine_title_span ui-helper-reset"></span></div> \
             <div class="machine_contents ui-helper-reset ui-widget-content ui-corner-bottom"> \
             <div class="machine_edit_form"></div>\
             <table><thead><tr><th>Slot Num</th><th>Name</th><th>Price</th><th>Available</th><th>Actions</th></tr></thead> \
@@ -548,12 +548,30 @@ drink.tabs.drink_machines = new (function() {
         editDom.submit(modMachine);
         machDom.find('.machine_edit_form').append(editDom);
         machDom.find('.machine_edit_form').hide();
-        machDom.filter('.machine_title').collapsible(machDom.filter('.machine_contents'));
-        machDom.find('.machine_edit').click(function() {
-            machDom.find('.machine_edit_form').toggle('blind');
+        machDom.filter('.machine_title').mouseover(function() { $(this).addClass('ui-state-hover') })
+                                        .mouseout(function () { $(this).removeClass('ui-state-hover') })
+                                        .collapsible(machDom.filter('.machine_contents'));
+        machDom.find('.machine_remove').button({text: false, icons: { primary: 'ui-icon-trash' }})
+        machDom.find('.machine_edit').button({text: false, icons: { primary: 'ui-icon-pencil' }}).click(function() {
+            machDom.find('.machine_edit_form').toggle();
             return false;
         });
         machDom.find('.machine_remove').click(function() {
+            $('<div title="Remove Machine?"><span class="ui-icon ui-icon-alert" style="float:left; margin:0 7px 20px 0;"></span>Are you sure you want to delete "' + self.info.name + '"? This cannot be undone.</div>').dialog({
+                resizable: false,
+                height: 130,
+                modal: true,
+                dialogClass: 'ui-state-error',
+                buttons: {
+                    'Delete Machine': function() {
+                        // TODO
+                        $(this).dialog('close')
+                    },
+                    Cancel: function() {
+                        $(this).dialog('close')
+                    }
+                }
+            });
             return false;
         })
         
@@ -570,7 +588,7 @@ drink.tabs.drink_machines = new (function() {
         this.updateInfo = function(info) {
             self.info = info;
 
-            machDom.find('h3').text(info.name);
+            machDom.find('.machine_title_span').text(info.name);
             
             if(!info.connected)
             {
@@ -790,10 +808,11 @@ drink.tabs.drink_machines = new (function() {
     }
     
     this.init = function() {
-        var m_a_link = $('<h4 class="ui-helper-reset ui-state-default ui-widget-header ui-corner-top ui-corner-bottom" id="machine_add_link">Add Machine</a>');
+        var m_a_link = $('<span class="ui-helper-reset ui-state-default ui-widget-header ui-corner-top ui-corner-bottom" id="machine_add_link">Add Machine</span>');
         var m_a_dom = machine_add_dom();
         $('#machines_holder').append(m_a_link).append(m_a_dom);
-        m_a_link.collapsible(m_a_dom);
+        m_a_link.mouseover(function() { m_a_link.addClass('ui-state-hover') })
+                .mouseout(function () { m_a_link.removeClass('ui-state-hover') }).collapsible(m_a_dom);
     }
     
     return this;

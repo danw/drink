@@ -306,9 +306,9 @@ machine_stat(false, Machine) ->
         {ok, Slots} ->
             {struct, [
                 {machineid, atom_to_list(Machine)},
-                {name, machine_name(Machine)},
+                {name, machine_attr(Machine, name, atom_to_list(Machine))},
                 {connected, drink_machine:is_alive(Machine)},
-                {temperature, machine_temperature(Machine)},
+                {temperature, machine_attr(Machine, temperature, false)},
                 {slots, {struct, slots(Slots)}}
             ]};
         _Else ->
@@ -319,35 +319,27 @@ machine_stat(true, Machine) ->
         {ok, Slots} ->
             {struct, [
                 {machineid, atom_to_list(Machine)},
-                {name, machine_name(Machine)},
+                {name, machine_attr(Machine, name, atom_to_list(Machine))},
                 {connected, drink_machine:is_alive(Machine)},
-                {temperature, machine_temperature(Machine)},
-                {password, "password"},
-                {public_ip, "public_ip"},
-                {available_sensor, false},
-                {machine_ip, "machine_ip"},
-                {allow_connect, true},
-                {admin_only, false},
+                {temperature, machine_attr(Machine, temperature, false)},
+                {password, machine_attr(Machine, password, false)},
+                {public_ip, ip_to_list(machine_attr(Machine, public_ip, false))},
+                {available_sensor, machine_attr(Machine, available_sensor, false)},
+                {machine_ip, ip_to_list(machine_attr(Machine, machine_ip, false))},
+                {allow_connect, machine_attr(Machine, allow_connect, false)},
+                {admin_only, machine_attr(Machine, admin_only, false)},
                 {slots, {struct, slots(Slots)}}
             ]};
         _Else ->
             false
     end.
 
-machine_name(Machine) ->
-    case drink_machine:name(Machine) of
+machine_attr(Machine, Attr, Default) ->
+    case drink_machine:Attr(Machine) of
         {ok, Name} ->
             Name;
         _Else ->
             atom_to_list(Machine)
-    end.
-
-machine_temperature(Machine) ->
-    case drink_machine:temperature(Machine) of
-        {ok, Temperature} ->
-            Temperature;
-        _Else ->
-            false
     end.
 
 slots([]) ->
@@ -362,6 +354,11 @@ slot_info(Slot) ->
         {available, Slot#slot.avail},
         {disabled, Slot#slot.disabled}
     ]}.
+
+ip_to_list(false) ->
+	false;
+ip_to_list({A,B,C,D}) ->
+	lists:flatten(io_lib:format("~w.~w.~w.~w", [A,B,C,D])).
 
 userref_to_struct(UserRef) ->
     case user_auth:user_info(UserRef) of

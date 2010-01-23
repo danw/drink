@@ -31,6 +31,7 @@
 -export ([handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
 -export ([got_response/2, got_machine_comm/1]).
 -export ([name/1, slots/1, drop/2, temperature/1, slot_info/2, is_alive/1, set_slot_info/2]).
+-export ([password/1, public_ip/1, available_sensor/1, machine_ip/1, allow_connect/1, admin_only/1]).
 
 -include ("drink_mnesia.hrl").
 -include_lib ("stdlib/include/qlc.hrl").
@@ -145,6 +146,18 @@ handle_call ({temp}, _From, State) ->
 		Temp ->
 			{reply, {ok, Temp}, State}
 	end;
+handle_call ({pasword}, _From, State) ->
+	{reply, {ok, (State#dmstate.record)#machine.password}, State};
+handle_call ({public_ip}, _From, State) ->
+	{reply, {ok, (State#dmstate.record)#machine.public_ip}, State};
+handle_call ({available_sensor}, _From, State) ->
+	{reply, {ok, (State#dmstate.record)#machine.available_sensor}, State};
+handle_call ({machine_ip}, _From, State) ->
+	{reply, {ok, (State#dmstate.record)#machine.machine_ip}, State};
+handle_call ({allow_connect}, _From, State) ->
+	{reply, {ok, (State#dmstate.record)#machine.allow_connect}, State};
+handle_call ({admin_only}, _From, State) ->
+	{reply, {ok, (State#dmstate.record)#machine.admin_only}, State};
 handle_call ({got_comm, CommPid}, _From, State = #dmstate{record = #machine{allow_connect = true}}) ->
     case State#dmstate.commpid of
         nil ->
@@ -260,6 +273,25 @@ is_alive (Machine) when is_atom(Machine) ->
 
 temperature (MachinePid) ->
 	safe_gen_call(MachinePid, {temp}).
+
+password (MachinePid) ->
+	safe_gen_call(MachinePid, {password}).
+
+public_ip (MachinePid) ->
+	safe_gen_call(MachinePid, {public_ip}).
+
+available_sensor (MachinePid) ->
+	safe_gen_call(MachinePid, {available_sensor}).
+
+machine_ip (MachinePid) ->
+	safe_gen_call(MachinePid, {machine_ip}).
+
+allow_connect (MachinePid) ->
+	safe_gen_call(MachinePid, {allow_connect}).
+
+admin_only (MachinePid) ->
+	safe_gen_call(MachinePid, {admin_only}).
+
 
 % Internal Helpers
 get_slot_by_num(Num, State) ->

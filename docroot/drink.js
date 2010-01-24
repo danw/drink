@@ -52,34 +52,30 @@ $.fn.extend({
 $(document).ready(function() {
     drink.user.init();
     
-    startEventListening();
+    start_websockets();
 });
 
-function startEventListening() {
-    return;
-    var xhr = new XMLHttpRequest();
-    if(typeof xhr.multipart != "undefined") {
-        $("body").append("xhr multipart");
-        xhr.multipart = true;
-        xhr.open('GET', '/drink/events', true);
-        xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
-        xhr.setRequestHeader("X-Requested-With", "XMLHttpRequest");
-        xhr.onload = function(event) {
-            alert(event.target.responseText);
-        };
-        xhr.send(null);
+function start_websockets() {
+    if(!("WebSocket" in window)) {
+        console.log("Upgrade to Chrome or another browser that support websockets!")
+        return;
     }
-    // $.ajax({
-    //     dataType: 'json',
-    //     url: '/drink/events',
-    //     multipart: true,
-    //     error: function() {
-    //         alert("Error listening for events");
-    //     },
-    //     success: function(data, status) {
-    //         alert("Got data: " + data);
-    //     }
-    // });
+    console.log("WS Warming up the engines...")
+    
+    ws = new WebSocket("ws://192.168.1.3:42080/drink/events");
+    ws.onopen = function() {
+        console.log("WS Got open event");
+        ws.send("hello");
+        // return true;
+    }
+    ws.onmessage = function(e) {
+        console.log("WS Got message:", e.data);
+        // return true;
+    }
+    ws.onclose = function() {
+        console.log("WS OH NO!! closed");
+        // return true;
+    }
 }
 
 drink = {}

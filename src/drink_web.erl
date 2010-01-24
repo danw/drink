@@ -26,7 +26,6 @@
 -module (drink_web).
 
 -export ([out/1]).
--export ([encode_json_chunk/1]).
 
 -include ("yaws_api.hrl").
 -include ("user.hrl").
@@ -55,9 +54,13 @@ out(A) ->
         {ok, UserName, Headers} ->
             case user_auth:auth({webauth, UserName}) of
                 {ok, UserRef} ->
-                    Ret = request(A, UserRef, (A#arg.req)#http_request.method, list_to_atom(A#arg.appmoddata)),
-                    user_auth:delete_ref(UserRef),
-                    Headers ++ Ret;
+                    case request(A, UserRef, (A#arg.req)#http_request.method, list_to_atom(A#arg.appmoddata)) of
+                        {websocket, OwnerPid, SocketMode} ->
+                            {websocket, OwnerPid, SocketMode};
+                        Ret ->
+                            user_auth:delete_ref(UserRef),
+                            Headers ++ Ret
+                    end;
                 _ -> Headers ++ error(login_failed)
             end;
         _ -> error(login_failed)
@@ -94,9 +97,9 @@ request(A, U, 'POST', drop) ->
     end;
 request(_, _, _, drop) -> error(wrong_method);
 
-request(_, _, 'GET', events) ->
-    drink_web_events:register([temperature, drop]),
-    [{streamcontent, "multipart/x-mixed-replace;boundary=\"eventboundaryx\"", "--eventboundaryx\nContent-type: application/json\n\n" ++ json:encode(true) ++ "\n\n"}];
+request(_, U, 'GET', events) ->
+    {ok, Pid, SocketMode} = drink_web_events:register(U, [temperature, drop]),
+    {websocket, Pid, SocketMode};
 request(_, _, _, events) -> error(wrong_method);
 
 request(A, U, 'GET', logs) ->
@@ -412,9 +415,6 @@ mod_user(UserRef, addibutton, Value, _ModReason) ->
     end;
 mod_user(_, _, _, _) ->
     error(invalid_args).
-
-encode_json_chunk(Json) ->
-    "--eventboundaryx\nContent-type: application/json\n\n" ++ json:encode(Json) ++ "\n\n".
 
 format_logs(Start, Length, Data) ->
     {struct, [{start, Start}, {length, Length}, {lines, {array, lists:map(fun format_log/1, Data)}}]}.

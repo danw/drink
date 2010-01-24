@@ -4,7 +4,7 @@
 %%% Purpose : 
 %%%
 %%%
-%%% edrink, Copyright (C) 2008 Dan Willemsen
+%%% edrink, Copyright (C) 2008-2010 Dan Willemsen
 %%%
 %%% This program is free software; you can redistribute it and/or
 %%% modify it under the terms of the GNU General Public License as
@@ -29,10 +29,10 @@
 -export ([start_link/0]).
 -export ([init/1]).
 -export ([handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
--export ([register/1, trigger/2]).
+-export ([register/2, trigger/2]).
 
 -record (web_event_state, {table}).
--record (event_listener, {yawspid, types}).
+-record (event_listener, {worker, userref, types}).
 
 %%%%%%%%%%%%%%%%%%%%%%%%
 % Gen_Server Callbacks %
@@ -46,25 +46,42 @@ init ([]) ->
     timer:send_interval(timer:seconds(20), ping),
     {ok, #web_event_state{table = Table}}.
 
-handle_call({register, Types}, {Pid, _PidRef}, State) ->
-    Listener = #event_listener{yawspid = Pid, types = Types},
-    ets:insert(State#web_event_state.table, Listener),
-    {reply, ok, State};
+handle_call({register, UserRef, Types}, _, State) ->
+    case drink_web_event_worker:start_link(UserRef) of
+        {ok, Pid} ->
+            io:format("Starting Web Worker~n"),
+            Listener = #event_listener{worker = Pid, userref = UserRef, types = Types},
+            ets:insert(State#web_event_state.table, Listener),
+            {reply, {ok, Pid, true}, State};
+        _ ->
+            error_logger:error_msg("Error starting drink_web_event_worker"),
+            {reply, {error, web_worker}, State}
+    end;
 handle_call(_, _From, State) ->
     {reply, {error, unknown_call}, State}.
 
+handle_cast({event, Type, Data}, State) ->
+    trigger_event(Type, Data, State),
+    {noreply, State};
 handle_cast(_, State) ->
     {noreply, State}.
 
-handle_info({event, Type, Data}, State) ->
-    trigger_event(Type, Data, State),
-    {noreply, State};
-handle_info({'EXIT', Pid, _Reason}, State) ->
-    ets:delete(State#web_event_state.table, Pid),
-    io:format("~n~nWeb Process Died ~w~n~n", [Pid]),
-    {noreply, State};
 handle_info(ping, State) ->
     trigger_event(ping, ok, State),
+    {noreply, State};
+handle_info({'EXIT', Pid, Reason}, State) ->
+    io:format("Web Worker quit~n"),
+    case Reason of
+        tcp_closed -> ok;
+        discard -> ok;
+        E ->
+            error_logger:error_msg("Web event worker died: ~p~n", [E]),
+            case ets:lookup(State#web_event_state.table, Pid) of
+                [Worker] -> user_auth:delete_ref(Worker#event_listener.userref);
+                _ -> ok
+            end
+    end,
+    ets:delete(State#web_event_state.table, Pid),
     {noreply, State};
 handle_info(_, State) ->
     {noreply, State}.
@@ -79,13 +96,13 @@ code_change(_OldVsn, State, _Extra) ->
 % External API %
 %%%%%%%%%%%%%%%%
 
-register(Type) when is_atom(Type) ->
-    register([Type]);
-register(Types) when is_list(Types) ->
-    gen_server:call(?MODULE, {register, Types}).
+register(UserRef, Type) when is_atom(Type) ->
+    ?MODULE:register(UserRef, [Type]);
+register(UserRef, Types) when is_list(Types) ->
+    gen_server:call(?MODULE, {register, UserRef, Types}).
 
 trigger(Type, Data) ->
-    ?MODULE ! {event, Type, Data}.
+    gen_server:cast(?MODULE, {event, Type, Data}).
 
 %%%%%%%%%%%%%%%%%%%%
 % Internal Helpers %
@@ -94,11 +111,10 @@ trigger(Type, Data) ->
 trigger_event(Type, Data, State) ->
     Msg = encode_message(Type, Data),
     ets:foldl(fun(Listener, _) ->
-        yaws_api:stream_chunk_deliver(Listener#event_listener.yawspid, Msg),
-        ok
+        drink_web_event_worker:send_msg(Listener#event_listener.worker, Msg)
     end, ok, State#web_event_state.table).
 
 encode_message(temperature, _Data) ->
-    drink_web:encode_json_chunk({struct, [{event, "temperature"}, {data, {struct, [{machine, "bigdrink"}, {temperature, 42.3}]}}]});
+    json:encode({struct, [{event, "temperature"}, {data, {struct, [{machine, "bigdrink"}, {temperature, 42.3}]}}]});
 encode_message(ping, _Data) ->
-    drink_web:encode_json_chunk({struct, [{event, "ping"}]}).
+    json:encode({struct, [{event, "ping"}]}).

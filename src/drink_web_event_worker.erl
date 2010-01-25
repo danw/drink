@@ -37,7 +37,7 @@
 % Gen_Server Callbacks %
 %%%%%%%%%%%%%%%%%%%%%%%%
 start_link (UserRef) ->
-	gen_server:start_link({local, ?MODULE}, ?MODULE, UserRef, []).
+	gen_server:start_link(?MODULE, UserRef, []).
 
 init (UserRef) ->
     {ok, #worker{userref = UserRef, socket = nil}}.
@@ -58,7 +58,26 @@ handle_info({ok, WebSocket}, State) ->
     {noreply, State#worker{socket = WebSocket}};
 handle_info({tcp, WebSocket, DataFrame}, State) ->
     Data = yaws_api:websocket_unframe_data(DataFrame),
-    io:format("Got data from Websocket: ~p~n", [Data]),
+    case json:decode_string(binary_to_list(Data)) of
+        {ok, {struct, ObjData}} ->
+            case {lists:keyfind(request, 1, ObjData), lists:keyfind(id, 1, ObjData), lists:keyfind(args, 1, ObjData)} of
+                {{request, Request}, {id, Id}, {args, Args}} ->
+                    Result = case request(State#worker.userref, list_to_atom(Request), element(2, Args)) of
+                        {ok, RespJson} ->
+                            json:encode({struct, [{response, Id}, {status, "ok"}, {data, RespJson}]});
+                        {error, Reason} when is_atom(Reason) ->
+                            json:encode({struct, [{response, Id}, {status, "error"}, {reason, atom_to_list(Reason)}]});
+                        Er ->
+                            error_logger:error_msg("Got unknown result: ~p~n", [Er]),
+                            json:encode({struct, [{response, Id}, {status, "error"}, {reason, "unknown"}]})
+                    end,
+                    yaws_api:websocket_send(State#worker.socket, Result);
+                _ ->
+                    error_logger:error_msg("Request not proper: ~p~n", [ObjData])
+            end;
+        E ->
+            error_logger:error_msg("Unknown message(Error ~p): ~p~n", [E, Data])
+    end,
     {noreply, State};
 handle_info(discard, State) ->
     {stop, discard, State};
@@ -76,6 +95,10 @@ terminate(_Reason, State) ->
 
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
+
+request(UserRef, Command, Args) ->
+    error_logger:error_msg("Got args: ~p~n", [Args]),
+    drink_json_api:request(UserRef, Command, Args).
 
 %%%%%%%%%%%%%%%%
 % External API %

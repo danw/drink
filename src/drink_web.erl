@@ -66,8 +66,16 @@ out(A) ->
         _ -> error(login_failed)
     end.
 
+api(UserRef, Command, Args) ->
+    case drink_json_api:request(UserRef, Command, Args) of
+        {ok, Data} ->
+            ok(Data);
+        {error, Reason} ->
+            error(Reason)
+    end.
+
 request(_, U, 'GET', currentuser) ->
-    userref_to_struct(U);
+    api(U, currentuser, nil);
 request(_, _, _, currentuser) -> error(wrong_method);
 
 request(A, U, 'POST', drop) ->
@@ -77,20 +85,7 @@ request(A, U, 'POST', drop) ->
                 {error, _Reason} ->
                     error(invalid_args);
                 {SlotNum, _} ->
-                    case user_auth:drop(U, list_to_atom(Machine), SlotNum) of
-                        ok ->
-                            ok(true);
-                        {error, permission_denied} ->
-                            error(permission_denied);
-                        {error, slot_empty} ->
-                            error(slot_empty);
-                        {error, machine_down} ->
-                            error(machine_down);
-                        {error, Reason} ->
-                            error(Reason);
-                        _Else ->
-                            error(unknown)
-                    end
+                    api(U, drop, [{machine, Machine}, {slot, SlotNum}])
             end;
         _ ->
             error(invalid_args)
@@ -110,13 +105,8 @@ request(A, U, 'GET', logs) ->
                     error(invalid_args);
                 {_, {error, _Reason}} ->
                     error(invalid_args);
-                {{Offset, _Rest}, {Limit, _Rest}} when Offset >= 0, Limit =< 100 ->
-                    case drink_mnesia:get_logs(U, Offset, Limit) of
-                        {ok, Data} ->
-                            ok(format_logs(Offset, Limit, Data));
-                        {error, Reason} ->
-                            error(Reason)
-                    end;
+                {{Offset, _Rest}, {Limit, _Rest}} ->
+                    api(U, logs, [{offset, Offset}, {limit, Limit}]);
                 _ ->
                     error(invalid_args)
             end;
@@ -126,7 +116,7 @@ request(A, U, 'GET', logs) ->
 request(_, _, _, logs) -> error(wrong_method);
 
 request(_, U, 'GET', machines) ->
-    ok({struct, machines(user_auth:can_admin(U), drink_machines_sup:machines())});
+    api(U, machines, nil);
 request(_, _, _, machines) -> error(wrong_method);
 
 request(A, U, 'POST', moduser) ->
@@ -134,19 +124,8 @@ request(A, U, 'POST', moduser) ->
           yaws_api:postvar(A, "attr"),
           yaws_api:postvar(A, "value"),
           yaws_api:postvar(A, "reason")} of
-        {{ok, UserName}, {ok, Attr}, {ok, Value}, ModReason} ->
-            case user_auth:admin(U, UserName) of
-                {ok, User} ->
-                    mod_user(User, list_to_atom(Attr), Value, ModReason);
-                {error, permission_denied} ->
-                    error(permission_denied);
-                {error, invalid_user} ->
-                    error(invalid_user);
-                {error, Reason} ->
-                    error(Reason);
-                _Else ->
-                    error(unknown)
-            end;
+        {{ok, UserName}, {ok, Attr}, {ok, Value}, {ok, ModReason}} ->
+            api(U, moduser, [{username, UserName}, {attr, Attr}, {value, Value}, {reason, ModReason}]);
         _ ->
             error(invalid_args)
     end;
@@ -170,22 +149,8 @@ request(A, U, 'POST', setslot) ->
                     error(invalid_args);
                 {_, _, {error, _}, _} ->
                     error(invalid_args);
-                {{Slot, _}, {Price, _}, {Avail, _}, Disabled} when is_boolean(Disabled) ->
-                    case drink_machine:set_slot_info(U, #slot{
-                        machine = list_to_atom(Machine),
-                        num = Slot,
-                        name = Name,
-                        price = Price,
-                        avail = Avail,
-                        disabled = Disabled
-                    }) of
-                        ok ->
-                            ok({struct, machines(user_auth:can_admin(U), drink_machines_sup:machines())});
-                        {error, permission_denied} ->
-                            error(permission_denied);
-                        {error, Reason} ->
-                            error(Reason)
-                    end;
+                {{Slot, _}, {Price, _}, {Avail, _}, Disabled} ->
+                    api(U, setslot, [{machine, Machine}, {slot, Slot}, {name, Name}, {price, Price}, {available, Avail}, {disabled, Disabled}]);
                 _ ->
                     error(invalid_args)
             end;
@@ -194,7 +159,7 @@ request(A, U, 'POST', setslot) ->
     end;
 request(_, _, _, setslot) -> error(wrong_method);
 
-request(A, _, 'GET', temperatures) ->
+request(A, U, 'GET', temperatures) ->
     case {yaws_api:queryvar(A, "from"), yaws_api:queryvar(A, "length")} of
         {{ok, FromStr}, {ok, LengthStr}} ->
             case {string:to_integer(FromStr), string:to_integer(LengthStr)} of
@@ -202,15 +167,8 @@ request(A, _, 'GET', temperatures) ->
                     error(invalid_args);
                 {_, {error, _Reason}} ->
                     error(invalid_args);
-                {{From, _Rest}, {Limit, _Rest}} when From >= 0, Limit >= 0, Limit =< 100000 ->
-                    FromSecs = From + calendar:datetime_to_gregorian_seconds({{1970, 1, 1}, {0, 0, 0}}),
-                    FromDate = calendar:gregorian_seconds_to_datetime(FromSecs),
-                    case drink_mnesia:get_temps(FromDate, Limit) of
-                        {ok, Data} ->
-                            ok(format_temps(From, Limit, Data));
-                        {error, Reason} ->
-                            error(Reason)
-                    end;
+                {{From, _Rest}, {Limit, _Rest}} ->
+                    api(U, temperatures, [{from, From}, {length, Limit}]);
                 _ ->
                     error(invalid_args)
             end;
@@ -222,53 +180,33 @@ request(_, _, _, temperatures) -> error(wrong_method);
 request(A, U, 'GET', userinfo) ->
     case yaws_api:queryvar(A, "user") of
         {ok, UserName} ->
-            case user_auth:user(U, UserName) of
-                {ok, User} ->
-                    Ret = userref_to_struct(User),
-                    user_auth:delete_ref(User),
-                    Ret;
-                _Else ->
-                    error(invalid_user)
-            end;
+            api(U, userinfo, [{user, UserName}]);
         _Else ->
             error(invalid_args)
     end;
 request(_, _, _, userinfo) -> error(wrong_method);
 
 request(A, U, 'POST', addmachine) ->
-    case user_auth:can_admin(U) of
-	true ->
-	    case {postvar(A, atom, "machine"),
-		  postvar(A, string, "name"),
-		  postvar(A, atom, "password"),
-		  postvar(A, ip, "public_ip"),
-		  postvar(A, atom, "available_sensor"),
-		  postvar(A, ip, "machine_ip"),
-		  postvar(A, atom, "allow_connect"),
-		  postvar(A, atom, "admin_only")} of
-		{{ok, MachineAtom},
-		 {ok, MachineName},
-		 {ok, MachinePassword},
-		 {ok, MachinePublicIP},
-		 {ok, MachineAvailableSensor},
-		 {ok, MachineIP},
-		 {ok, MachineAllowConnect},
-		 {ok, MachineAdminOnly}} ->
-		    case drink_machines_sup:add(#machine{machine = MachineAtom,
-							 password = MachinePassword,
-							 name = MachineName,
-							 public_ip = MachinePublicIP,
-							 available_sensor = MachineAvailableSensor,
-							 machine_ip = MachineIP,
-							 allow_connect = MachineAllowConnect,
-							 admin_only = MachineAdminOnly}) of
-			ok -> ok(true);
-			_  -> error(unknown_error)
-		    end;
-		_ -> error(invalid_args)
-	    end;
-	false ->
-	    error(permission_denied)
+    case {postvar(A, atom, "machine"),
+          postvar(A, string, "name"),
+          postvar(A, atom, "password"),
+          postvar(A, ip, "public_ip"),
+          postvar(A, atom, "available_sensor"),
+          postvar(A, ip, "machine_ip"),
+          postvar(A, atom, "allow_connect"),
+          postvar(A, atom, "admin_only")} of
+        {{ok, Atom},
+         {ok, Name},
+         {ok, Password},
+         {ok, PublicIP},
+         {ok, AvailableSensor},
+         {ok, MachineIP},
+         {ok, AllowConnect},
+         {ok, AdminOnly}} ->
+             api(U, addmachine, [{machine, Atom}, {name, Name}, {password, Password}, {public_ip, PublicIP}, 
+                {available_sensor, AvailableSensor}, {machine_ip, MachineIP}, {allow_connect, AllowConnect},
+                {admin_only, AdminOnly}]);
+        _ -> error(invalid_args)
     end;
 request(_, _, _, addmachine) -> error(wrong_method);
 
@@ -289,165 +227,12 @@ error(Reason) ->
 
 postvar(A, ip, Name) ->
     case yaws_api:postvar(A, Name) of
-	{ok, IP} -> inet:getaddr(IP, inet);
-	E -> E
+        {ok, IP} -> inet:getaddr(IP, inet);
+        E -> E
     end;
 postvar(A, atom, Name) ->
     case yaws_api:postvar(A, Name) of
-	{ok, Atom} -> {ok, list_to_atom(Atom)};
-	E -> E
+        {ok, Atom} -> {ok, list_to_atom(Atom)};
+        E -> E
     end;
 postvar(A, _, Name) -> yaws_api:postvar(A, Name).
-
-machines(_Admin, []) ->
-    [];
-machines(Admin, [M|Machines]) when is_boolean(Admin) ->
-    [{M, machine_stat(Admin, M)}] ++ machines(Admin, Machines).
-
-machine_stat(false, Machine) ->
-    case drink_machine:slots(Machine) of
-        {ok, Slots} ->
-            {struct, [
-                {machineid, atom_to_list(Machine)},
-                {name, machine_attr(Machine, name, atom_to_list(Machine))},
-                {connected, drink_machine:is_alive(Machine)},
-                {temperature, machine_attr(Machine, temperature, false)},
-                {slots, {struct, slots(Slots)}}
-            ]};
-        _Else ->
-            false
-    end;
-machine_stat(true, Machine) ->
-    case drink_machine:slots(Machine) of
-        {ok, Slots} ->
-            {struct, [
-                {machineid, atom_to_list(Machine)},
-                {name, machine_attr(Machine, name, atom_to_list(Machine))},
-                {connected, drink_machine:is_alive(Machine)},
-                {temperature, machine_attr(Machine, temperature, false)},
-                {password, machine_attr(Machine, password, false)},
-                {public_ip, ip_to_list(machine_attr(Machine, public_ip, false))},
-                {available_sensor, machine_attr(Machine, available_sensor, false)},
-                {machine_ip, ip_to_list(machine_attr(Machine, machine_ip, false))},
-                {allow_connect, machine_attr(Machine, allow_connect, false)},
-                {admin_only, machine_attr(Machine, admin_only, false)},
-                {slots, {struct, slots(Slots)}}
-            ]};
-        _Else ->
-            false
-    end.
-
-machine_attr(Machine, Attr, Default) ->
-    case drink_machine:Attr(Machine) of
-        {ok, Name} ->
-            Name;
-        _Else ->
-            atom_to_list(Machine)
-    end.
-
-slots([]) ->
-    [];
-slots([S|Slots]) ->
-    [{integer_to_list(S#slot.num),slot_info(S)}] ++ slots(Slots).
-
-slot_info(Slot) ->
-    {struct, [
-        {name, Slot#slot.name},
-        {price, Slot#slot.price},
-        {available, Slot#slot.avail},
-        {disabled, Slot#slot.disabled}
-    ]}.
-
-ip_to_list(false) ->
-	false;
-ip_to_list({A,B,C,D}) ->
-	lists:flatten(io_lib:format("~w.~w.~w.~w", [A,B,C,D])).
-
-userref_to_struct(UserRef) ->
-    case user_auth:user_info(UserRef) of
-        {ok, UserInfo} ->
-            ok({struct, [
-                {username, UserInfo#user.username},
-                {credits, UserInfo#user.credits},
-                {admin, UserInfo#user.admin},
-                {ibuttons, {array, UserInfo#user.ibuttons}}
-            ]});
-        {error, _Reason} ->
-            error(invalid_user)
-    end.
-
-mod_user(UserRef, admin, "true", ModReason) -> mod_user(UserRef, admin, true, ModReason);
-mod_user(UserRef, admin, "false", ModReason) -> mod_user(UserRef, admin, false, ModReason);
-mod_user(UserRef, admin, Value, _) when is_atom(Value) ->
-    case user_auth:set_admin(UserRef, Value) of
-        ok ->
-            userref_to_struct(UserRef);
-        {error, Reason} ->
-            error(Reason)
-    end;
-mod_user(UserRef, modcredits, Value, ModReason) when is_list(Value) ->
-    case string:to_integer(Value) of
-        {error, _Reason} ->
-            error(invalid_args);
-        {IntValue, _Rest} ->
-            mod_user(UserRef, modcredits, IntValue, ModReason)
-    end;
-mod_user(UserRef, modcredits, Value, {ok, ModReason}) when is_integer(Value) ->
-    case user_auth:mod_credits(UserRef, Value, list_to_atom(ModReason)) of
-        ok ->
-            userref_to_struct(UserRef);
-        {error, Reason} ->
-            error(Reason)
-    end;
-mod_user(UserRef, delibutton, Value, _ModReason) ->
-    case user_auth:del_ibutton(UserRef, Value) of
-        ok ->
-            userref_to_struct(UserRef);
-        {error, Reason} ->
-            error(Reason)
-    end;
-mod_user(UserRef, addibutton, Value, _ModReason) ->
-    case user_auth:add_ibutton(UserRef, Value) of
-        ok ->
-            userref_to_struct(UserRef);
-        {error, Reason} ->
-            error(Reason)
-    end;
-mod_user(_, _, _, _) ->
-    error(invalid_args).
-
-format_logs(Start, Length, Data) ->
-    {struct, [{start, Start}, {length, Length}, {lines, {array, lists:map(fun format_log/1, Data)}}]}.
-
-format_log(Line = #money_log{}) ->
-    {struct, [
-        {type, "money"},
-        {time, calendar:datetime_to_gregorian_seconds(Line#money_log.time) - 
-                calendar:datetime_to_gregorian_seconds({{1970, 1, 1},{0, 0, 0}})},
-        {username, Line#money_log.username},
-        {admin, Line#money_log.admin},
-        {amount, Line#money_log.amount},
-        {direction, atom_to_list(Line#money_log.direction)},
-        {reason, atom_to_list(Line#money_log.reason)}
-    ]};
-format_log(Line = #drop_log{}) ->
-    {struct, [
-        {type, "drop"}, 
-        {machine, atom_to_list(Line#drop_log.machine)},
-        {slot, Line#drop_log.slot},
-        {username, Line#drop_log.username},
-        {time, calendar:datetime_to_gregorian_seconds(Line#drop_log.time) - 
-                calendar:datetime_to_gregorian_seconds({{1970, 1, 1},{0, 0, 0}})},
-        {status, Line#drop_log.status}
-    ]}.
-
-format_temps(Start, Length, Data) -> % TODO: don't hardcode bigdrink and littledrink
-    {struct, [{start, Start}, {length, Length}, {machines, {struct, [
-        {bigdrink, {array, lists:map(fun format_temp/1,
-            lists:filter(fun(E) -> E#temperature.machine =:= bigdrink end, Data))}},
-        {littledrink, {array, lists:map(fun format_temp/1,
-            lists:filter(fun(E) -> E#temperature.machine =:= littledrink end, Data))}}]}}]}.
-
-format_temp(Temp = #temperature{}) ->
-    {array, [calendar:datetime_to_gregorian_seconds(Temp#temperature.time) - 
-     calendar:datetime_to_gregorian_seconds({{1970, 1, 1}, {0, 0, 0}}), Temp#temperature.temperature]}.

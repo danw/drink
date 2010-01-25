@@ -50,54 +50,101 @@ $.fn.extend({
 });
 
 $(document).ready(function() {
+    drink.websocket.init();
     drink.user.init();
-    
-    start_websockets();
 });
-
-function start_websockets() {
-    if(!("WebSocket" in window)) {
-        console.log("Upgrade to Chrome or another browser that support websockets!")
-        return;
-    }
-    console.log("WS Warming up the engines...")
-    
-    ws = new WebSocket("ws://192.168.1.3:42080/drink/events");
-    ws.onopen = function() {
-        console.log("WS Got open event");
-        ws.send("hello");
-        // return true;
-    }
-    ws.onmessage = function(e) {
-        console.log("WS Got message:", e.data);
-        // return true;
-    }
-    ws.onclose = function() {
-        console.log("WS OH NO!! closed");
-        // return true;
-    }
-}
 
 drink = {}
 
-drink.ajax = function(options, fn) {
-    var errFn = false;
-    if(arguments.length > 2)
-        errFn = arguments[2];
+drink.websocket = new (function() {
+    var self = this;
+    this.use = false;
+    this.ws = false;
+    this.requests = {};
+    
+    this.gotMessage = function(evt) {
+        var data = JSON.parse(evt.data);
+        if ("event" in data) {
+            console.log("WS Got event: " + data["event"])
+        } else if("response" in data) {
+            if (data.response in self.requests) {
+                if (data.status == "error") {
+                    console.log("WS Got error: " + data.reason);
+                    if ("error" in self.requests[data.response])
+                        self.requests[data.response].error(data.reason);
+                } else {
+                    self.requests[data.response].success(data.data);
+                }
+                delete self.requests[data.response];
+            } else {
+                console.log("Got a response to an unknown request!");
+            }
+        } else {
+            console.log("WS Unknown message");
+        }
+    }
+    
+    this.remoteCall = function(options) {
+        if (this.ws === false) {
+            console.log("WTF, no open websocket, why am i being called");
+            return;
+        }
+        request = { request: options.command, id: Math.floor(Math.random() * 10000000), args: options.args }
+        self.requests[request.id] = options;
+        self.ws.send(JSON.stringify(request));
+    }
+    
+    this.init = function() {
+        if (!("WebSocket" in window)) {
+            console.log("Upgrade to Chrome or another browser that support websockets!");
+            return;
+        }
+        
+        // TODO: dynamic websocket address
+        self.ws = new WebSocket("ws://192.168.1.3:42080/drink/events");
+        self.ws.onopen = function() {
+            console.log("WS Got open event");
+            self.use = true;
+        }
+        self.ws.onmessage = self.gotMessage;
+        self.ws.onclose = function() {
+            console.log("WS Got close event");
+            self.use = false;
+            self.ws = false;
+            // TODO: go through self.requests and error all of them
+            setTimeout(self.init, 1000);
+        }
+    }
+})();
 
+drink.remoteCall = function(options) {
+    if(drink.websocket.use) {
+        console.log("RC Using Websocket");
+        drink.websocket.remoteCall(options);
+    } else {
+        console.log("RC Using Ajax");
+        drink.ajax(options);
+    }
+}
+
+drink.ajax = function(call_options) {
+    var options = ("ajaxOptions" in call_options) ? call_options.ajaxOptions : {};
+
+    options.url = "/drink/" + call_options.command;
+    options.data = call_options.args;
     options.dataType = 'json';
     options.error = function() {
         drink.log("Error fetching " + options.url);
-        if(errFn != false)
-            errFn.apply(null, null);
+        if("error" in call_options)
+            call_options.error(null);
     }
     options.success = function(data, status) {
         if(data.status == "error") {
             drink.log("Error returned from " + options.url + " - " + data.reason);
-            if(errFn != false)
-                errFn.apply(null, [data.reason]);
+            if("error" in call_options)
+                call_options.error(data.reason);
         } else {
-            fn.apply(null, [data.data]);
+            call_options.success(data.data);
         }
     }
     $.ajax(options);
@@ -166,12 +213,15 @@ drink.user = new (function() {
     }
     
     this.refresh = function() {
-        drink.ajax({
-            url: '/drink/currentuser'
-        }, gotUser, function() {
-            drink.log("Error getting current user");
-            // Refresh the page, hopefully making the user re-webauth if necessary
-            location.reload(true);
+        drink.remoteCall({
+            command: 'currentuser',
+            args: [],
+            success: gotUser,
+            error: function() {
+                drink.log("Error getting current user");
+                // Refresh the page, hopefully making the user re-webauth if necessary
+                location.reload(true);
+            }
         });
     }
     
@@ -179,17 +229,20 @@ drink.user = new (function() {
         $('#header').hide();
         $('#tabs').hide();
 
-        drink.ajax({
-            url: '/drink/currentuser'
-        }, function(user) {
-            gotUser(user);
-            $('#header').show();
-            $('#tabs').show();
-            drink.tab.init();
-        }, function() {
-            drink.log("Error getting current user");
-            // Don't auto refresh here, for fear of continuously refreshing
-            alert("Error, please refresh.");
+        drink.remoteCall({
+            command: 'currentuser',
+            args: [], 
+            success: function(user) {
+                gotUser(user);
+                $('#header').show();
+                $('#tabs').show();
+                drink.tab.init();
+            },
+            error: function() {
+                drink.log("Error getting current user");
+                // Don't auto refresh here, for fear of continuously refreshing
+                alert("Error, please refresh.");
+            }
         });
     }
     
@@ -342,10 +395,11 @@ drink.tabs.temperatures = new (function() {
     }
     
     var getTemps = function(From, Length) {
-        drink.ajax({
-            url: '/drink/temperatures',
-            data: {from: From, length: Length}
-        }, gotTemps);
+        drink.remoteCall({
+            command: 'temperatures',
+            args: {from: From, length: Length},
+            success: gotTemps
+        });
     }
     
     this.admin_required = false;
@@ -427,10 +481,11 @@ drink.tabs.logs = new (function () {
     }
 
     this.refresh = function() {
-        drink.ajax({
-            url: '/drink/logs',
-            data: {offset: offset, limit: limit}
-        }, gotLogs);
+        drink.remoteCall({
+            command: 'logs', 
+            args: {offset: offset, limit: limit}, 
+            success: gotLogs
+        });
     }
     
     this.user_update = function() {
@@ -666,11 +721,15 @@ drink.tabs.drink_machines = new (function() {
     }
     
     var set_slot_info = function(machine, num, name, price, available, disabled) {
-        drink.ajax({
-            url: '/drink/setslot',
-            type: 'POST',
-            data: { machine: machine, slot: num, name: name, price: price, available: available, disabled: disabled }
-        }, gotMachines);
+        drink.remoteCall({
+            command: 'setslot',
+            args: { machine: machine, slot: num, name: name, price: price, 
+                available: available, disabled: disabled },
+            success: gotMachines,
+            ajaxOptions: {
+                type: 'POST'
+            }
+        });
     }
 
     var editSlot = function(machine, slotnum) {
@@ -705,18 +764,21 @@ drink.tabs.drink_machines = new (function() {
 
         if(delay == null)
             return;
-        
+
         if(delay > 0) {
             setTimeout(function() { drop(machine, slot) }, delay * 1000);
             return;
         }
-        
-        drink.ajax({
-            url: '/drink/drop',
-            type: 'POST',
-            data: { machine: machine, slot: slot, delay: 0 }
-        }, function() {
-            alert('Dropping... RUN!');
+
+        drink.remoteCall({
+            command: 'drop',
+            args: { machine: machine, slot: slot, delay: 0 },
+            success: function() {
+                alert('Dropping... RUN!');
+            },
+            ajaxOptions: {
+                type: 'POST'
+            }
         });
     }
     
@@ -736,10 +798,9 @@ drink.tabs.drink_machines = new (function() {
     }
 
     var addMachine = function() {
-        drink.ajax({
-            url: '/drink/addmachine',
-            type: 'POST',
-            data: {
+        drink.remoteCall({
+            command: 'addmachine',
+            args: {
                 machine: $('.machine_add_id').val(),
                 password: $('.machine_add_password').val(),
                 name: $('.machine_add_name').val(),
@@ -747,13 +808,19 @@ drink.tabs.drink_machines = new (function() {
                 available_sensor: $('.machine_add_available_sensor').val() == "on",
                 machine_ip: $('.machine_add_machine_ip').val(),
                 allow_connect: $('.machine_add_allow_connect').val() == "on",
-                admin_only: $('.machine_add_admin_only').val() == "on"}
-        }, function() {
-            $('#machine_add_form').hide();
-            $('#machine_add_form input').val(false);
-            self.refresh();
-        }, function() {
-            alert("Error adding machine");
+                admin_only: $('.machine_add_admin_only').val() == "on"
+            },
+            success: function() {
+                $('#machine_add_form').hide();
+                $('#machine_add_form input').val(false);
+                self.refresh();
+            },
+            error: function() {
+                alert("Error adding machine");
+            },
+            ajaxOptions: {
+                type: 'POST'
+            }
         });
         return false;
     }
@@ -798,9 +865,11 @@ drink.tabs.drink_machines = new (function() {
     }
     
     this.refresh = function() {
-        drink.ajax({
-            url: '/drink/machines'
-        }, gotMachines);
+        drink.remoteCall({
+            command: 'machines', 
+            args: [], 
+            success: gotMachines
+        });
     }
     
     this.init = function() {
@@ -825,10 +894,11 @@ drink.tabs.user_admin = new (function() {
         if(username == 'username' || username == '')
             return false;
         
-        drink.ajax({
-            url: '/drink/userinfo',
-            data: {user: username}
-        }, got_user_info);
+        drink.remoteCall({
+            command: 'userinfo', 
+            args: {user: username}, 
+            success: got_user_info,
+        });
 
         return false;
     }
@@ -922,11 +992,15 @@ drink.tabs.user_admin = new (function() {
     var mod_user = function(username, attr, value, reason) {
         $('#user_admin_mod_form a').empty();
         $('#user_admin_mod_form form').empty();
-        drink.ajax({
-            url: '/drink/moduser',
-            data: { username: username, attr: attr, value: value, reason: reason },
-            type: 'POST'
-        }, got_user_info);
+
+        drink.remoteCall({
+            command: 'moduser',
+            args: { username: username, attr: attr, value: value, reason: reason },
+            success: got_user_info,
+            ajaxOptions: {
+                type: 'POST'
+            }
+        });
     }
     
     this.admin_required = true;

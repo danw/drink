@@ -49,7 +49,6 @@ init ([]) ->
 handle_call({register, UserRef, Types}, _, State) ->
     case drink_web_event_worker:start_link(UserRef) of
         {ok, Pid} ->
-            io:format("Starting Web Worker~n"),
             Listener = #event_listener{worker = Pid, userref = UserRef, types = Types},
             ets:insert(State#web_event_state.table, Listener),
             {reply, {ok, Pid, true}, State};
@@ -70,7 +69,6 @@ handle_info(ping, State) ->
     trigger_event(ping, ok, State),
     {noreply, State};
 handle_info({'EXIT', Pid, Reason}, State) ->
-    io:format("Web Worker quit~n"),
     case Reason of
         tcp_closed -> ok;
         discard -> ok;

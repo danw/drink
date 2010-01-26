@@ -5,6 +5,7 @@
  * Licensed under the MIT (MIT-LICENSE.txt) license
  */
 
+// TODO: Replace with placeholder plugin
 $.fn.extend({
     unfocusColor: function(str, unColor, color) {
         $(this).focus(function() {
@@ -51,7 +52,6 @@ $.fn.extend({
 
 $(document).ready(function() {
     drink.websocket.init();
-    drink.user.init();
 });
 
 drink = {}
@@ -69,9 +69,7 @@ drink.websocket = new (function() {
         var data = JSON.parse(evt.data);
         if ("event" in data) {
             console.log("WS Got event: " + data.event, data.data);
-            if (data.event == "machine") {
-                drink.tabs.drink_machines.machine_event(data.data);
-            }
+            $('body').trigger(data.event + '_event', data.data);
         } else if("response" in data) {
             if (data.response in self.requests) {
                 if (data.status == "error") {
@@ -202,72 +200,42 @@ drink.time = {
     }
 }
 
-drink.user = new (function() {
-    var self = this;
-    var current_user = false;
-    
+$(document).ready(function() {
     var gotUser = function(data) {
-        // Refresh page if user changed
-        if(current_user && data.username != current_user.username)
-            location.reload();
-        
-        current_user = data;
-        
-        $('#currentuser').text(current_user.username);
-        $('#currentuser_balance').text(current_user.credits);
-        if(current_user.admin)
-            $('#currentuser_admin').show();
-        else
-            $('#currentuser_admin').hide();
-    }
+        $('body').data('user', data);
+        $('body').trigger('user_changed', data);
+    };
     
-    this.refresh = function() {
+    $('body').data('user', null);
+    $('#header').hide();
+    $('#tabs').hide();
+    
+    $('body').bind('user_refresh', function() {
         drink.remoteCall({
             command: 'currentuser',
             args: [],
-            success: gotUser,
+            success: function(data) {
+                $('body').data('user', data).trigger('user_changed', data);
+            },
             error: function() {
                 drink.log("Error getting current user");
                 // Refresh the page, hopefully making the user re-webauth if necessary
                 location.reload(true);
             }
         });
-    }
+    });
     
-    this.init = function() {
-        $('#header').hide();
-        $('#tabs').hide();
-
-        drink.remoteCall({
-            command: 'currentuser',
-            args: [], 
-            success: function(user) {
-                gotUser(user);
-                $('#header').show();
-                $('#tabs').show();
-                drink.tab.init();
-            },
-            error: function() {
-                drink.log("Error getting current user");
-                // Don't auto refresh here, for fear of continuously refreshing
-                alert("Error, please refresh.");
-            }
-        });
-    }
-    
-    this.current = function() {
-        return current_user;
-    }
-    
-    this.updated = function(userinfo) {
-        if(userinfo && current_user.username == userinfo.username) {
-            gotUser(userinfo);
-        } else
-            drink.log("Not accepting updated user - different username")
-    }
-    
-    return this;
-})();
+    $('body').bind('user_changed', function(e, user) {
+        $('#header').show();
+        $('#tabs').show();
+        $('#currentuser').text(user.username);
+        $('#currentuser_balance').text(user.credits);
+        if(user.admin)
+            $('#currentuser_admin').show();
+        else
+            $('#currentuser_admin').hide();
+    });
+});
 
 drink.tab = new (function() {
     var self = this;
@@ -277,30 +245,34 @@ drink.tab = new (function() {
 
     var tabIndex = function(idx) {
         if (typeof idx == 'string') {
-	    return anchors.index(anchors.filter('[href$=' + idx + ']'));
-	} else {
-	    var hash = anchors.eq(idx)[0].hash;
-	    return hash.slice(1, hash.length);
-	}
-    }
-
-    var update_user = function(e, userinfo) {
-        tab_elem.tabs('options', 'disabled', []);
-        for(var tab in drink.tabs) {
-            if(drink.tabs[tab].admin_required && !userinfo.admin) {
-                idx = tabIndex(tab);
-                if(idx == -1)
-                    drink.log("Broken! can't find tab");
-
-                if(selectedTab == idx) {
-                    // TODO: figure out first legit tab to select
-                    tab_elem.tabs('select', 0);
-                }
-
-                tab_elem.tabs('disable', idx );
-            }
+            return anchors.index(anchors.filter('[href$=' + idx + ']'));
+        } else {
+            var hash = anchors.eq(idx)[0].hash;
+            return hash.slice(1, hash.length);
         }
     }
+
+    $(document).ready(function () {
+        self.init();
+        
+        $('body').bind('user_changed', function(e, user) {
+            tab_elem.tabs('options', 'disabled', []);
+            for(var tab in drink.tabs) {
+                if(drink.tabs[tab].admin_required && !user.admin) {
+                    idx = tabIndex(tab);
+                    if(idx == -1)
+                        drink.log("Broken! can't find tab");
+
+                    if(selectedTab == idx) {
+                        // TODO: figure out first legit tab to select
+                        tab_elem.tabs('select', 0);
+                    }
+
+                    tab_elem.tabs('disable', idx );
+                }
+            }
+        });
+    });
     
     var tabSelected = function(e, ui) {
         var newTab = tabIndex(ui.index);//ui.tab.hash.slice(1, ui.tab.hash.length)
@@ -330,15 +302,6 @@ drink.tab = new (function() {
             show: tabSelected // Only for this call
         });
         tab_elem.unbind('tabsshow', tabSelected);
-        update_user(null, drink.user.current());
-        
-        $(window).bind('user.drink', update_user);
-        $(window).bind('user.drink', function(e, userinfo) {
-            for(var tab in drink.tabs) {
-                if(drink.tabs[tab].user_update && typeof drink.tabs[tab].user_update == 'function')
-                    drink.tabs[tab].user_update(userinfo);
-            }
-        });
     }
     
     return this;
@@ -497,11 +460,13 @@ drink.tabs.logs = new (function () {
         });
     }
     
-    this.user_update = function() {
-        last_update = false;
-        if(drink.tabs.selectedTab == 'logs')
-            self.refresh();
-    }
+    $(document).ready(function() {
+        $('body').bind('user_changed', function(e, user) {
+            last_update = false;
+            if(drink.tabs.selectedTab == 'logs')
+                self.refresh();
+        });
+    });
     
     this.init = function() {
         $('.logprev').click(function() {
@@ -542,7 +507,7 @@ drink.tabs.drink_machines = new (function() {
 
     // var slot_dom = function(machine, slot) {
     //     var droppable = false;
-    //     droppable = (slot.available && machine.connected && (drink.user.current().credits >= slot.price));
+    //     droppable = (slot.available && machine.connected && ($('body').data('user').credits >= slot.price));
     // 
     //     var s = $('<tr><td class="slotnum"></td><td class="slotname"></td><td class="slotprice"></td><td class="slotavail"></td><td class="slotactions"></td></tr>');
     //     
@@ -727,7 +692,7 @@ drink.tabs.drink_machines = new (function() {
             }
         }
         
-        self.user_update(drink.user.current());
+        self.user_update();
     }
     
     var set_slot_info = function(machine, num, name, price, available, disabled) {
@@ -846,20 +811,25 @@ drink.tabs.drink_machines = new (function() {
             self.refresh();
     }
     
-    this.machine_event = function(machine) {
-        if (machine.machineid in machine_list) {
-            machine_list[machine.machineid].updateInfo(machine);
-            console.log(machine_list[machine.machineid].dom);
-            machine_list[machine.machineid].dom.effect('highlight');
-        } else {
-            machine_list[machine.machineid] = new Machine(machinelist, machine);
-        }
-        self.user_update(drink.user.current());
-    }
+    $(document).ready(function () {
+        $('body').bind('machine_event', function(e, machine) {
+            if (machine.machineid in machine_list) {
+                machine_list[machine.machineid].updateInfo(machine);
+                console.log(machine_list[machine.machineid].dom);
+                machine_list[machine.machineid].dom.effect('highlight');
+            } else {
+                machine_list[machine.machineid] = new Machine(machinelist, machine);
+            }
+            self.user_update();
+        });
+    });
     
-    this.user_update = function(userinfo) {
+    this.user_update = function() {
         var drops = $('#drink_machines .slotaction_drop');
         var admin = $('#drink_machines .slotaction_edit, #drink_machines .slotaction_disable, #drink_machines .machine_edit, #machine_add_link');
+        
+        var userinfo = $('body').data('user');
+        if(userinfo == undefined) return;
         
         // todo - droppable
         drops.each(function() {
@@ -884,6 +854,7 @@ drink.tabs.drink_machines = new (function() {
         } else
             admin.hide();
     }
+    $(document).ready(function() { self.user_update(); });
     
     this.refresh = function() {
         drink.remoteCall({
@@ -925,8 +896,8 @@ drink.tabs.user_admin = new (function() {
     }
 
     var got_user_info = function(userinfo) {
-        if(drink.user.current().username == userinfo.username) {
-            drink.user.updated(userinfo);
+        if($('body').data('user').username == userinfo.username) {
+            $('body').data('user', userinfo).trigger('user_changed');
         }
         
         current_edit_user = userinfo;
@@ -1043,3 +1014,8 @@ drink.tabs.user_admin = new (function() {
     
     return this;
 })();
+
+$(document).ready(function() {
+    $('body').trigger('user_refresh');
+});
+

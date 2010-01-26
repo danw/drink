@@ -107,12 +107,20 @@ trigger(Type, Data) ->
 %%%%%%%%%%%%%%%%%%%%
 
 trigger_event(Type, Data, State) ->
-    Msg = encode_message(Type, Data),
+    Msg = encode_event(Type, Data),
     ets:foldl(fun(Listener, _) ->
         drink_web_event_worker:send_msg(Listener#event_listener.worker, Msg)
     end, ok, State#web_event_state.table).
 
-encode_message(temperature, _Data) ->
-    json:encode({struct, [{event, "temperature"}, {data, {struct, [{machine, "bigdrink"}, {temperature, 42.3}]}}]});
-encode_message(ping, _Data) ->
-    json:encode({struct, [{event, "ping"}]}).
+encode_event_data(machine, Machine) ->
+    drink_json_api:machine_stat(false, Machine);
+encode_event_data(temperature, _Data) ->
+    {struct, [{machine, "bigdrink"}, {temperature, 42.3}]};
+encode_event_data(_, _) ->
+    nil.
+
+encode_event(Type, Data) ->
+    case encode_event_data(Type, Data) of
+        nil -> json:encode({struct, [{event, atom_to_list(Type)}]});
+        JData -> json:encode({struct, [{event, atom_to_list(Type)}, {data, JData}]})
+    end.

@@ -33,64 +33,66 @@
 -include_lib ("stdlib/include/qlc.hrl").
 
 start_link () ->
-	case supervisor:start_link({local, ?MODULE}, ?MODULE, []) of
-	    {ok, Pid} ->
-		case mnesia:transaction(fun() -> mnesia:all_keys(machine) end) of
-		    {atomic, Machines} ->
-			lists:foreach(fun(Machine) ->
-                            case supervisor:start_child(?MODULE, [Machine]) of
-                                {error, E} -> error_logger:error_msg("Error starting machine ~p: ~p~n", [Machine, E]);
-                                {ok, _} -> ok
-                            end
-                        end, Machines);
-	    	    _ ->
-			error_logger:error_msg("Failed to read machine table from mnesia! Not creating drink machine instances!~n")
-		end,
-		{ok, Pid};
-	    Error ->
-		Error
-	end.
+    case supervisor:start_link({local, ?MODULE}, ?MODULE, []) of
+        {ok, Pid} ->
+            case mnesia:transaction(fun() -> mnesia:all_keys(machine) end) of
+                {atomic, Machines} ->
+                    lists:foreach(fun(Machine) ->
+                        case supervisor:start_child(?MODULE, [Machine]) of
+                            {error, E} -> error_logger:error_msg("Error starting machine ~p: ~p~n", [Machine, E]);
+                            {ok, _} -> ok
+                        end
+                    end, Machines);
+                _ ->
+                    error_logger:error_msg("Failed to read machine table from mnesia! Not creating drink machine instances!~n")
+            end,
+            {ok, Pid};
+        Error ->
+            Error
+    end.
 
 init ([]) ->
-	{ok, {{simple_one_for_one, 3, 10}, % Simple one for one restart, dies completely after 3 times in 10 seconds
-		  [{drink_machine,
-			{drink_machine, start_link, []},
-			permanent,
-			100,
-			worker,
-			[drink_machine]}]}}.
+    {ok, {{simple_one_for_one, 3, 10}, % Simple one for one restart, dies completely after 3 times in 10 seconds
+          [{drink_machine,
+            {drink_machine, start_link, []},
+            permanent,
+            100,
+            worker,
+            [drink_machine]}]}}.
 
 add(Machine = #machine{}) ->
-	F = fun() ->
-	    mnesia:write(Machine)
-	end,
-	case mnesia:transaction(F) of
-	    {atomic, ok} ->
-		case supervisor:start_child(?MODULE, [Machine#machine.machine]) of
-                    {error, E} ->
-                        error_logger:error_msg("Error starting machine ~p: ~p~n", [Machine#machine.machine, E]),
-                        {error, E};
-                    {ok, _} -> ok
-		end;
-	    _ ->
-		{error, mnesia}
-	end.
+    F = fun() ->
+        mnesia:write(Machine)
+    end,
+    case mnesia:transaction(F) of
+        {atomic, ok} ->
+            case supervisor:start_child(?MODULE, [Machine#machine.machine]) of
+                {error, E} ->
+                    error_logger:error_msg("Error starting machine ~p: ~p~n", [Machine#machine.machine, E]),
+                    {error, E};
+                {ok, _} ->
+                    drink_web_events:trigger(machine, Machine#machine.machine),
+                    ok
+            end;
+        _ ->
+            {error, mnesia}
+    end.
 
 machine_names([{_,Pid,_,_}|T]) ->
-	{registered_name, Name} = process_info(Pid, registered_name),
-	lists:append([Name], machine_names(T));
+    {registered_name, Name} = process_info(Pid, registered_name),
+    lists:append([Name], machine_names(T));
 machine_names([]) ->
-	[].
+    [].
 
 machines () ->
-	machine_names(supervisor:which_children(?MODULE)).
+    machine_names(supervisor:which_children(?MODULE)).
 
 is_machine (MachineId) ->
-	case mnesia:transaction(fun() -> mnesia:read({machine, MachineId}) end) of
-		{atomic, [_MachineRec]} ->
-			true;
-		{atomic, []} ->
-			false;
-		{aborted, _Reason} ->
-			false
-	end.
+    case mnesia:transaction(fun() -> mnesia:read({machine, MachineId}) end) of
+        {atomic, [_MachineRec]} ->
+            true;
+        {atomic, []} ->
+            false;
+        {aborted, _Reason} ->
+            false
+    end.

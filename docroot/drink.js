@@ -68,7 +68,10 @@ drink.websocket = new (function() {
     this.gotMessage = function(evt) {
         var data = JSON.parse(evt.data);
         if ("event" in data) {
-            console.log("WS Got event: " + data["event"])
+            console.log("WS Got event: " + data.event, data.data);
+            if (data.event == "machine") {
+                drink.tabs.drink_machines.machine_event(data.data);
+            }
         } else if("response" in data) {
             if (data.response in self.requests) {
                 if (data.status == "error") {
@@ -634,6 +637,7 @@ drink.tabs.drink_machines = new (function() {
         
         this.add = function(list) {
             machineList.append(machDom);
+            self.dom = machDom;
             visible = true;
         }
         
@@ -840,6 +844,17 @@ drink.tabs.drink_machines = new (function() {
     this.show_tab = function() {
         if(last_update == false || last_update + refresh_interval < drink.time.nowUTC())
             self.refresh();
+    }
+    
+    this.machine_event = function(machine) {
+        if (machine.machineid in machine_list) {
+            machine_list[machine.machineid].updateInfo(machine);
+            console.log(machine_list[machine.machineid].dom);
+            machine_list[machine.machineid].dom.effect('highlight');
+        } else {
+            machine_list[machine.machineid] = new Machine(machinelist, machine);
+        }
+        self.user_update(drink.user.current());
     }
     
     this.user_update = function(userinfo) {

@@ -26,6 +26,7 @@
 -module (drink_json_api).
 
 -export ([request/3]).
+-export ([machine_stat/2]).
 
 -include ("user.hrl").
 -include ("drink_mnesia.hrl").

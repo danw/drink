@@ -61,6 +61,9 @@ drink.websocket = new (function() {
     this.use = false;
     this.ws = false;
     this.requests = {};
+    var backoff_orig = 500;
+    var backoff_limit = 10000;
+    this.backoff_delay = backoff_orig;
     
     this.gotMessage = function(evt) {
         var data = JSON.parse(evt.data);
@@ -105,6 +108,7 @@ drink.websocket = new (function() {
         self.ws.onopen = function() {
             console.log("WS Got open event");
             self.use = true;
+            self.backoff_delay = backoff_orig;
         }
         self.ws.onmessage = self.gotMessage;
         self.ws.onclose = function() {
@@ -112,7 +116,9 @@ drink.websocket = new (function() {
             self.use = false;
             self.ws = false;
             // TODO: go through self.requests and error all of them
-            setTimeout(self.init, 1000);
+            setTimeout(self.init, self.backoff_delay);
+            self.backoff_delay *= 2;
+            if (self.backoff_delay > backoff_limit) self.backoff_delay = backoff_limit;
         }
     }
 })();

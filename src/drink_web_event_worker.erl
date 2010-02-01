@@ -56,28 +56,9 @@ handle_info({ok, WebSocket}, State) ->
     % TODO: Check for already existing socket?
     yaws_api:websocket_send(WebSocket, json:encode({struct, [{event, "hello"}]})),
     {noreply, State#worker{socket = WebSocket}};
-handle_info({tcp, WebSocket, DataFrame}, State) ->
-    Data = yaws_api:websocket_unframe_data(DataFrame),
-    case json:decode_string(binary_to_list(Data)) of
-        {ok, {struct, ObjData}} ->
-            case {lists:keyfind(request, 1, ObjData), lists:keyfind(id, 1, ObjData), lists:keyfind(args, 1, ObjData)} of
-                {{request, Request}, {id, Id}, {args, Args}} ->
-                    Result = case request(State#worker.userref, list_to_atom(Request), element(2, Args)) of
-                        {ok, RespJson} ->
-                            json:encode({struct, [{response, Id}, {status, "ok"}, {data, RespJson}]});
-                        {error, Reason} when is_atom(Reason) ->
-                            json:encode({struct, [{response, Id}, {status, "error"}, {reason, atom_to_list(Reason)}]});
-                        Er ->
-                            error_logger:error_msg("Got unknown result: ~p~n", [Er]),
-                            json:encode({struct, [{response, Id}, {status, "error"}, {reason, "unknown"}]})
-                    end,
-                    yaws_api:websocket_send(State#worker.socket, Result);
-                _ ->
-                    error_logger:error_msg("Request not proper: ~p~n", [ObjData])
-            end;
-        E ->
-            error_logger:error_msg("Unknown message(Error ~p): ~p~n", [E, Data])
-    end,
+handle_info({tcp, _WebSocket, DataFrame}, State) ->
+    Data = yaws_websockets:unframe_all(DataFrame, []),
+    handle_incoming_call(State, Data),
     {noreply, State};
 handle_info(discard, State) ->
     {stop, discard, State};
@@ -106,3 +87,31 @@ request(UserRef, Command, Args) ->
 
 send_msg(Ref, Msg) ->
     gen_server:cast(Ref, {send_msg, Msg}).
+
+%%%%%%%%%%%%%%%%%%
+% Internal funcs %
+%%%%%%%%%%%%%%%%%%
+handle_incoming_call(_State, []) ->
+    ok;
+handle_incoming_call(State, [Data|T]) ->
+    case json:decode_string(binary_to_list(Data)) of
+        {ok, {struct, ObjData}} ->
+            case {lists:keyfind(request, 1, ObjData), lists:keyfind(id, 1, ObjData), lists:keyfind(args, 1, ObjData)} of
+                {{request, Request}, {id, Id}, {args, Args}} ->
+                    Result = case request(State#worker.userref, list_to_atom(Request), element(2, Args)) of
+                        {ok, RespJson} ->
+                            json:encode({struct, [{response, Id}, {status, "ok"}, {data, RespJson}]});
+                        {error, Reason} when is_atom(Reason) ->
+                            json:encode({struct, [{response, Id}, {status, "error"}, {reason, atom_to_list(Reason)}]});
+                        Er ->
+                            error_logger:error_msg("Got unknown result: ~p~n", [Er]),
+                            json:encode({struct, [{response, Id}, {status, "error"}, {reason, "unknown"}]})
+                    end,
+                    yaws_api:websocket_send(State#worker.socket, Result);
+                _ ->
+                    error_logger:error_msg("Request not proper: ~p~n", [ObjData])
+            end;
+        E ->
+            error_logger:error_msg("Unknown message(Error ~p): ~p~n", [E, Data])
+    end,
+    handle_incoming_call(State, T).

@@ -50,10 +50,6 @@ $.fn.extend({
     }
 });
 
-$(document).ready(function() {
-    drink.websocket.init();
-});
-
 drink = {}
 
 drink.websocket = new (function() {
@@ -122,6 +118,8 @@ drink.websocket = new (function() {
             if (self.backoff_delay > backoff_limit) self.backoff_delay = backoff_limit;
         }
     }
+
+    $(document).ready(function() { self.init(); });
 })();
 
 drink.remoteCall = function(options) {
@@ -253,7 +251,13 @@ drink.tab = new (function() {
     }
 
     $(document).ready(function () {
-        self.init();
+        anchors = $('#tabs ul:first li:has(a[href])').map(function() { return $('a', this)[0] });
+        tab_elem = $('#tabs').tabs( {
+            //cookie: {expires: 7, path: '/', secure: true}, cookieName: 'main';
+            selected: tabSelected,
+            show: tabSelected // Only for this call
+        });
+        tab_elem.unbind('tabsshow', tabSelected);
         
         $('body').bind('user_changed', function(e, user) {
             tab_elem.tabs('options', 'disabled', []);
@@ -285,23 +289,6 @@ drink.tab = new (function() {
         self.selectedTab = newTab;
  
         return true;
-    }
-
-    this.init = function() {
-        drink.log("Init Tabs");
-        for(var tab in drink.tabs) {
-            drink.log("... " + tab);
-            drink.tabs[tab].init();
-        }
-
-        drink.log("End Tabs");
-        anchors = $('#tabs ul:first li:has(a[href])').map(function() { return $('a', this)[0] });
-        tab_elem = $('#tabs').tabs( {
-            //cookie: {expires: 7, path: '/', secure: true}, cookieName: 'main';
-            selected: tabSelected,
-            show: tabSelected // Only for this call
-        });
-        tab_elem.unbind('tabsshow', tabSelected);
     }
     
     return this;
@@ -385,10 +372,6 @@ drink.tabs.temperatures = new (function() {
         getTemps(drink.time.nowUTC() - Length, Length + 60);
     }
     
-    this.init = function() {
-
-    }
-    
     return this;
 })();
 
@@ -466,9 +449,7 @@ drink.tabs.logs = new (function () {
             if(drink.tabs.selectedTab == 'logs')
                 self.refresh();
         });
-    });
-    
-    this.init = function() {
+
         $('.logprev').click(function() {
             offset -= limit;
             offset = (offset > 0) ? offset : 0;
@@ -481,7 +462,7 @@ drink.tabs.logs = new (function () {
             self.refresh();
             return false;
         });
-    }
+    });
     
     return this;
 })();
@@ -854,7 +835,6 @@ drink.tabs.drink_machines = new (function() {
         } else
             admin.hide();
     }
-    $(document).ready(function() { self.user_update(); });
     
     this.refresh = function() {
         drink.remoteCall({
@@ -864,13 +844,15 @@ drink.tabs.drink_machines = new (function() {
         });
     }
     
-    this.init = function() {
+    $(document).ready(function() {
         var m_a_link = $('<span class="ui-helper-reset ui-state-default ui-widget-header ui-corner-top ui-corner-bottom" id="machine_add_link">Add Machine</span>');
         var m_a_dom = machine_add_dom();
         $('#machines_holder').append(m_a_link).append(m_a_dom);
         m_a_link.mouseover(function() { m_a_link.addClass('ui-state-hover') })
                 .mouseout(function () { m_a_link.removeClass('ui-state-hover') }).collapsible(m_a_dom);
-    }
+        
+        self.user_update();
+    });
     
     return this;
 })();
@@ -897,7 +879,7 @@ drink.tabs.user_admin = new (function() {
 
     var got_user_info = function(userinfo) {
         if($('body').data('user').username == userinfo.username) {
-            $('body').data('user', userinfo).trigger('user_changed');
+            $('body').data('user', userinfo).trigger('user_changed', userinfo);
         }
         
         current_edit_user = userinfo;
@@ -997,11 +979,7 @@ drink.tabs.user_admin = new (function() {
     
     this.admin_required = true;
     
-    this.refresh = function() {
-        
-    }
-    
-    this.init = function() {
+    $(document).ready(function() {
         $('#user_admin_username').unfocusColor('username', 'gray', 'black');
         
         $('#user_admin_get_form').submit(get_user_info);
@@ -1010,7 +988,7 @@ drink.tabs.user_admin = new (function() {
         $('#user_admin_toggle_admin').click(toggle_admin);
         $('#user_admin_mod_reason').change(modcredits_reason_change);
         $('#user_admin > table').hide();
-    }
+    });
     
     return this;
 })();

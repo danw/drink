@@ -196,7 +196,7 @@ machine_stat(false, Machine) ->
                 {machineid, atom_to_list(Machine)},
                 {name, machine_attr(Machine, name, atom_to_list(Machine))},
                 {connected, drink_machine:is_alive(Machine)},
-                {temperature, machine_attr(Machine, temperature, false)},
+                {temperature, machine_attr(Machine, temperature, 0)},
                 {slots, {struct, slots(Slots)}}
             ]};
         _Else ->
@@ -209,11 +209,11 @@ machine_stat(true, Machine) ->
                 {machineid, atom_to_list(Machine)},
                 {name, machine_attr(Machine, name, atom_to_list(Machine))},
                 {connected, drink_machine:is_alive(Machine)},
-                {temperature, machine_attr(Machine, temperature, false)},
-                {password, machine_attr(Machine, password, false)},
-                {public_ip, ip_to_list(machine_attr(Machine, public_ip, false))},
+                {temperature, machine_attr(Machine, temperature, 0)},
+                {password, machine_attr(Machine, password, "")},
+                {public_ip, ip_to_list(machine_attr(Machine, public_ip, ""))},
                 {available_sensor, machine_attr(Machine, available_sensor, false)},
-                {machine_ip, ip_to_list(machine_attr(Machine, machine_ip, false))},
+                {machine_ip, ip_to_list(machine_attr(Machine, machine_ip, ""))},
                 {allow_connect, machine_attr(Machine, allow_connect, false)},
                 {admin_only, machine_attr(Machine, admin_only, false)},
                 {slots, {struct, slots(Slots)}}

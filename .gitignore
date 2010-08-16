@@ -1,6 +1,5 @@
 *.boot
 *.script
-ebin/*.beam
 MnesiaCore*
 erl_crash.dump
 log
@@ -15,3 +14,5 @@ web_log
 drink.config
 drink.rel
 .DS_Store
+deps
+ebin

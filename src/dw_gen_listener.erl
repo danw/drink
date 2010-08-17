@@ -1,10 +1,10 @@
 %%%-------------------------------------------------------------------
-%%% File    : gen_listener.erl
+%%% File    : dw_gen_listener.erl
 %%% Author  : Dan Willemsen <dan@csh.rit.edu>
 %%% Purpose : 
 %%%
 %%%
-%%% edrink, Copyright (C) 2008 Dan Willemsen
+%%% edrink, Copyright (C) 2008-2010 Dan Willemsen
 %%%
 %%% This program is free software; you can redistribute it and/or
 %%% modify it under the terms of the GNU General Public License as
@@ -23,7 +23,7 @@
 %%%
 %%%-------------------------------------------------------------------
 
--module (gen_listener).
+-module (dw_gen_listener).
 -behaviour (gen_server).
 
 -export ([start_link/2]).

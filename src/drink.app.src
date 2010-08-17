@@ -7,7 +7,7 @@
              drink_machine,
              drink_machine_comm,
              drink_web,
-             gen_listener,
+             dw_gen_listener,
              user_auth]},
   {registered,[drink_sup, drink_machines_sup, drink_machine_comm_listener, user_auth]},
   {applications, [kernel, stdlib, sasl, ssl, yaws]},

@@ -45,11 +45,11 @@ init ([]) ->
 
 common_children() ->
     [{machine_listener,     % Our first child, the drink_machine_listener
-      {gen_listener, start_link, [drink_app:get_port(machine_listen_port), {drink_machine_comm, start_link, []}]},
+      {dw_gen_listener, start_link, [drink_app:get_port(machine_listen_port), {drink_machine_comm, start_link, []}]},
       permanent,            % Always restart
       100,                  % Allow 10 seconds for it to shutdown
       worker,               % It isn't a supervisor
-      [gen_listener]},
+      [dw_gen_listener]},
 
      {machines,             % The Supervisor for connected machines
       {drink_machines_sup, start_link, []},

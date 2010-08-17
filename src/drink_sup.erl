@@ -29,99 +29,124 @@
 -export ([start/0, start_link/1, init/1]).
 
 start () ->
-	start_link([]).
+    start_link([]).
 
 start_link (Args) ->
-	supervisor:start_link({local,?MODULE}, ?MODULE, Args).
+    supervisor:start_link({local,?MODULE}, ?MODULE, Args).
 
 init ([]) ->
-	DBPassFile = filename:join(code:priv_dir(drink), "dbpass"),
-	case filelib:is_file(DBPassFile) of
-	    true ->
-		{ok, LogDBServer} = application:get_env(log_db_server),
-		{ok, LogDBUser} = application:get_env(log_db_user),
-		{ok, LogDBDatabase} = application:get_env(log_db_database),
-		{ok, Bin} = file:read_file(DBPassFile),
-		LogDBPassword = binary_to_list(Bin),
-		LogDBSpec = [{mysql_conn,
-		    {mysql, start_link, [drink_log, LogDBServer, undefined, 
-		     LogDBUser, LogDBPassword, LogDBDatabase, fun mysql_log/4]},
-		    permanent,
-		    100,
-		    worker,
-		    [mysql]}];
-	    _ ->
-		error_logger:error_msg("Warning: Log DB Password missing, skipping log db!~n"),
-		LogDBSpec = []
-	end,
+    case {user_auth_provider(), logger_provider()} of
+        {{ok, UserAuthChildren}, {ok, LoggerChildren}} ->
+            {ok, {{one_for_one, 10, 3},  % One for one restart, shutdown after 10 restarts within 3 seconds
+                common_children() ++ LoggerChildren ++ UserAuthChildren}};
+        {_,_} ->
+        {error, cant_start}
+    end.
 
-	LdapFile = filename:join(code:priv_dir(drink), "eldap.conf"),
-	case filelib:is_file(LdapFile) of
-	    true ->
-		UserAuthInfo = user_auth_ldap,
-		LdapSpec = [{eldap_user,
-                    {eldap, start_link, ["user"]},
-                     permanent,
-                     100,
-                     worker,
-                     [eldap]}];
-	    false ->
-		error_logger:error_msg("Warning: Ldap Config missing, skipping ldap user info!~n"),
-		UserAuthInfo = user_auth_mnesia,
-		LdapSpec = []
-	end,
+common_children() ->
+    [{machine_listener,     % Our first child, the drink_machine_listener
+      {gen_listener, start_link, [drink_app:get_port(machine_listen_port), {drink_machine_comm, start_link, []}]},
+      permanent,            % Always restart
+      100,                  % Allow 10 seconds for it to shutdown
+      worker,               % It isn't a supervisor
+      [gen_listener]},
 
-	{ok, {{one_for_one, 10, 3},  % One for one restart, shutdown after 10 restarts within 3 seconds
-		  [{machine_listener,    % Our first child, the drink_machine_listener
-			{gen_listener, start_link, [drink_app:get_port(machine_listen_port), {drink_machine_comm, start_link, []}]},
-			permanent,			 % Always restart
-			100,				 % Allow 10 seconds for it to shutdown
-			worker,				 % It isn't a supervisor
-			[gen_listener]},
-			
-		   {machines,			% The Supervisor for connected machines
-			{drink_machines_sup, start_link, []},
-			permanent,			% Always restart the supervisor
-			infinity,			% Wait forever for the supervisor
-			supervisor,
-			[drink_machines_sup]}, % Uses the drink_machines_sup Module
-			
-		   {user_auth,			% The User Authenticator
-		    {user_auth, start_link, [UserAuthInfo]},
-		    permanent,			% Always restart
-		    100,				% Allow 100 seconds for it to shutdown
-		    worker,				% Not a supervisor
-		    [user_auth]},		% Uses the user_auth Module
+     {machines,             % The Supervisor for connected machines
+      {drink_machines_sup, start_link, []},
+      permanent,            % Always restart the supervisor
+      infinity,             % Wait forever for the supervisor
+      supervisor,
+      [drink_machines_sup]}, % Uses the drink_machines_sup Module
 
-		   {sunday_server_listener,
-		    {gen_listener, start_link, [drink_app:get_port(sunday_server_port), {sunday_server, start_link, []}]},
-		    permanent,
-		    100,
-		    worker,
-		    [gen_listener]},
-		    
-		   {finger_server_listener,
-		    {gen_listener, start_link, [drink_app:get_port(finger_server_port), {finger_server, start_link, []}]},
-		    permanent,
-		    100,
-		    worker,
-		    [gen_listener]},
+     {sunday_server_listener,
+      {gen_listener, start_link, [drink_app:get_port(sunday_server_port), {sunday_server, start_link, []}]},
+      permanent,
+      100,
+      worker,
+      [gen_listener]},
 
-           {pam_auth,
-            {epam, start_link, []},
-            permanent,
-            100,
-            worker,
-            [epam]},
-            
-           {drink_web_events,
-            {drink_web_events, start_link, []},
-            permanent,
-            100,
-            worker,
-            [drink_web_events]}
-		  ] ++ LogDBSpec ++ LdapSpec
-		}}.
+     {finger_server_listener,
+      {gen_listener, start_link, [drink_app:get_port(finger_server_port), {finger_server, start_link, []}]},
+      permanent,
+      100,
+      worker,
+      [gen_listener]},
+
+     {pam_auth,
+      {epam, start_link, []},
+      permanent,
+      100,
+      worker,
+      [epam]},
+
+     {drink_web_events,
+      {drink_web_events, start_link, []},
+      permanent,
+      100,
+      worker,
+      [drink_web_events]}].
+
+user_auth_provider() ->
+    case application:get_env(user_auth_provider) of
+        {ok, ldap} ->
+            LdapFile = filename:join(code:priv_dir(drink), "eldap.conf"),
+            case filelib:is_file(LdapFile) of
+                true ->
+                    LdapSpec = [{eldap_user,
+                                 {eldap, start_link, ["user"]},
+                                 permanent,
+                                 100,
+                                 worker,
+                                 [eldap]}],
+                    {ok, LdapSpec ++ user_auth_provider_entry(user_auth_ldap)};
+                false ->
+                    error_logger:error_msg("Error: Ldap Config missing, and user_auth_provider set to ldap~n"),
+                    {error, ldap_config_missing}
+            end;
+        {ok, mnesia} ->
+            {ok, user_auth_provider_entry(user_auth_mnesia)};
+        Else ->
+            error_logger:error_msg("Error: Unknown user_auth_provider: ~p~n", [Else]),
+            {error, unknown_user_auth_provider}
+    end.
+
+user_auth_provider_entry(Provider) ->
+    [{user_auth,
+      {user_auth, start_link, [Provider]},
+      permanent,
+      100,
+      worker,
+      [user_auth]}].
+
+logger_provider() ->
+    case application:get_env(use_log_db) of
+        {ok, true} ->
+            DBPassFile = filename:join(code:priv_dir(drink), "dbpass"),
+            case filelib:is_file(DBPassFile) of
+                true ->
+                    case {application:get_env(log_db_server), application:get_env(log_db_user), application:get_env(log_db_database), file:read_file(DBPassFile)} of
+                        {{ok, LogDBServer}, {ok, LogDBUser}, {ok, LogDBDatabase}, {ok, Bin}} ->
+                            LogDBPassword = binary_to_list(Bin),
+                            {ok, [{mysql_conn,
+                                   {mysql, start_link, [drink_log, LogDBServer, undefined, LogDBUser, LogDBPassword, LogDBDatabase, fun mysql_log/4]},
+                                   permanent,
+                                   100,
+                                   worker,
+                                   [mysql]}]};
+                        {A, B, C, _} ->
+                            error_logger:error_msg("Error: Log DB misconfigured: '~p' '~p' '~p'~n", [A,B,C]),
+                            {error, log_db_args}
+                    end;
+                _ ->
+                    error_logger:error_msg("Error: Log DB Password missing, and use_log_db = true~n"),
+                    {error, log_db_password_missing}
+            end;
+        {ok, false} ->
+            {ok, []};
+        Else ->
+            error_logger:error_msg("Error: Unknown use_log_db: ~p~n", [Else]),
+            {error, unknown_use_log_db}
+    end.
 
 % Logging function for the mysql module
 mysql_log(_Module, _Line, _Level, _Fun) ->

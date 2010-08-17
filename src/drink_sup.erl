@@ -58,20 +58,6 @@ common_children() ->
       supervisor,
       [drink_machines_sup]}, % Uses the drink_machines_sup Module
 
-     {sunday_server_listener,
-      {gen_listener, start_link, [drink_app:get_port(sunday_server_port), {sunday_server, start_link, []}]},
-      permanent,
-      100,
-      worker,
-      [gen_listener]},
-
-     {finger_server_listener,
-      {gen_listener, start_link, [drink_app:get_port(finger_server_port), {finger_server, start_link, []}]},
-      permanent,
-      100,
-      worker,
-      [gen_listener]},
-
      {pam_auth,
       {epam, start_link, []},
       permanent,

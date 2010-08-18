@@ -74,23 +74,8 @@ common_children() ->
 
 user_auth_provider() ->
     case application:get_env(user_auth_provider) of
-        {ok, ldap} ->
-            LdapFile = filename:join(code:priv_dir(drink), "eldap.conf"),
-            case filelib:is_file(LdapFile) of
-                true ->
-                    LdapSpec = [{eldap_user,
-                                 {eldap, start_link, ["user"]},
-                                 permanent,
-                                 100,
-                                 worker,
-                                 [eldap]}],
-                    {ok, LdapSpec ++ user_auth_provider_entry(user_auth_ldap)};
-                false ->
-                    error_logger:error_msg("Error: Ldap Config missing, and user_auth_provider set to ldap~n"),
-                    {error, ldap_config_missing}
-            end;
-        {ok, mnesia} ->
-            {ok, user_auth_provider_entry(user_auth_mnesia)};
+        {ok, Mod} ->
+            {ok, user_auth_provider_entry(Mod)};
         Else ->
             error_logger:error_msg("Error: Unknown user_auth_provider: ~p~n", [Else]),
             {error, unknown_user_auth_provider}

@@ -63,14 +63,7 @@ common_children() ->
       permanent,
       100,
       worker,
-      [epam]},
-
-     {drink_web_events,
-      {drink_web_events, start_link, []},
-      permanent,
-      100,
-      worker,
-      [drink_web_events]}].
+      [epam]}].
 
 user_auth_provider() ->
     case application:get_env(user_auth_provider) of

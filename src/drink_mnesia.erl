@@ -32,12 +32,11 @@
 -include ("user.hrl").
 
 initialize() ->
-	case mnesia:start() of
-		{error, _Reason} ->
-			mnesia:create_schema([node()]),
-			ok = mnesia:start();
-		ok -> ok
-	end,
+    case filelib:is_file("mnesia_data/schema.DAT") of
+        false -> mnesia:create_schema([node()]);
+        true ->  ok
+    end,
+    ok = mnesia:start(),
 	case mnesia:create_table(machine, [
 		{disc_copies, [node()]},
 		{ram_copies, []},

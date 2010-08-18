@@ -37,7 +37,7 @@
 % Gen_Server Callbacks %
 %%%%%%%%%%%%%%%%%%%%%%%%
 start_link (UserRef) ->
-	gen_server:start_link(?MODULE, UserRef, []).
+    gen_server:start_link(?MODULE, UserRef, []).
 
 init (UserRef) ->
     {ok, #worker{userref = UserRef, socket = nil}}.

@@ -37,60 +37,60 @@ initialize() ->
         true ->  ok
     end,
     ok = mnesia:start(),
-	case mnesia:create_table(machine, [
-		{disc_copies, [node()]},
-		{ram_copies, []},
-		{record_name, machine},
-		{index, [password]},
-		{attributes, record_info(fields, machine)}]) of
-	    {atomic, ok} -> ok;
-	    {aborted, {already_exists, _}} -> ok;
-	    E -> error_logger:error_msg("Got mnesia error: ~p~n", [E])
-	end,
-	case mnesia:create_table(slot, [
-		{type, bag},
-		{disc_copies, [node()]},
-		{ram_copies, []},
-		{record_name, slot},
-		{index, [num]},
-		{attributes, record_info(fields, slot)}]) of
-	    {atomic, ok} -> ok;
-	    {aborted, {already_exists, _}} -> ok;
-	    Er -> error_logger:error_msg("Got mnesia error: ~p~n", [Er])
-	end,
-	case mnesia:create_table(temperature, [
-		{type, bag},
-		{disc_only_copies, [node()]},
-		{ram_copies, []},
-		{record_name, temperature},
-		{index, [time]},
-		{attributes, record_info(fields, temperature)}]) of
-	    {atomic, ok} -> ok;
-	    {aborted, {already_exists, _}} -> ok;
-	    Err -> error_logger:error_msg("Got mnesia error: ~p~n", [Err])
-	end,
-	case mnesia:create_table(money_log, [
-		{type, bag},
-		{disc_only_copies, [node()]},
-		{ram_copies, []},
-		{record_name, money_log},
-		{index, []},
-		{attributes, record_info(fields, money_log)}]) of
-	    {atomic, ok} -> ok;
-	    {aborted, {already_exists, _}} -> ok;
-	    Erro -> error_logger:error_msg("Got mnesia error: ~p~n", [Erro])
-	end,
-	case mnesia:create_table(drop_log, [
-		{type, bag},
-		{disc_only_copies, [node()]},
-		{ram_copies, []},
-		{record_name, drop_log},
-		{index, [time, username, slot, status]},
-		{attributes, record_info(fields, drop_log)}]) of
-	    {atomic, ok} -> ok;
-	    {aborted, {already_exists, _}} -> ok;
-	    Error -> error_logger:error_msg("Got mnesia error: ~p~n", [Error])
-	end.
+    case mnesia:create_table(machine, [
+        {disc_copies, [node()]},
+        {ram_copies, []},
+        {record_name, machine},
+        {index, [password]},
+        {attributes, record_info(fields, machine)}]) of
+        {atomic, ok} -> ok;
+        {aborted, {already_exists, _}} -> ok;
+        E -> error_logger:error_msg("Got mnesia error: ~p~n", [E])
+    end,
+    case mnesia:create_table(slot, [
+        {type, bag},
+        {disc_copies, [node()]},
+        {ram_copies, []},
+        {record_name, slot},
+        {index, [num]},
+        {attributes, record_info(fields, slot)}]) of
+        {atomic, ok} -> ok;
+        {aborted, {already_exists, _}} -> ok;
+        Er -> error_logger:error_msg("Got mnesia error: ~p~n", [Er])
+    end,
+    case mnesia:create_table(temperature, [
+        {type, bag},
+        {disc_only_copies, [node()]},
+        {ram_copies, []},
+        {record_name, temperature},
+        {index, [time]},
+        {attributes, record_info(fields, temperature)}]) of
+        {atomic, ok} -> ok;
+        {aborted, {already_exists, _}} -> ok;
+        Err -> error_logger:error_msg("Got mnesia error: ~p~n", [Err])
+    end,
+    case mnesia:create_table(money_log, [
+        {type, bag},
+        {disc_only_copies, [node()]},
+        {ram_copies, []},
+        {record_name, money_log},
+        {index, []},
+        {attributes, record_info(fields, money_log)}]) of
+        {atomic, ok} -> ok;
+        {aborted, {already_exists, _}} -> ok;
+        Erro -> error_logger:error_msg("Got mnesia error: ~p~n", [Erro])
+    end,
+    case mnesia:create_table(drop_log, [
+        {type, bag},
+        {disc_only_copies, [node()]},
+        {ram_copies, []},
+        {record_name, drop_log},
+        {index, [time, username, slot, status]},
+        {attributes, record_info(fields, drop_log)}]) of
+        {atomic, ok} -> ok;
+        {aborted, {already_exists, _}} -> ok;
+        Error -> error_logger:error_msg("Got mnesia error: ~p~n", [Error])
+    end.
 
 mysql_init() ->
     mysql:prepare(log_temperature, <<"INSERT INTO temperature_log VALUES (?, ?, ?)">>),

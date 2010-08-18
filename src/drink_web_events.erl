@@ -38,7 +38,7 @@
 % Gen_Server Callbacks %
 %%%%%%%%%%%%%%%%%%%%%%%%
 start_link () ->
-	gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+    gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 init ([]) ->
     process_flag(trap_exit, true),

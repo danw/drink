@@ -37,92 +37,92 @@
 -include_lib ("stdlib/include/qlc.hrl").
 
 -record (dmstate, {
-			machineid,
-			commpid = nil,
-			record,
-			latest_temp = nil}).
+    machineid,
+    commpid = nil,
+    record,
+    latest_temp = nil}).
 
 start_link (MachineId) ->
-	gen_server:start_link({local, MachineId}, ?MODULE, MachineId, []).
+    gen_server:start_link({local, MachineId}, ?MODULE, MachineId, []).
 
 init (MachineId) ->
-	case mnesia:transaction(fun() -> mnesia:read({machine, MachineId}) end) of
-		{atomic, [MachineRecord]} ->
-			State = #dmstate{
-				machineid = MachineId,
-				record = MachineRecord
-			},
-			{ok, State};
-		{atomic, []} ->
-			{stop, {error, invalid_machine}};
-		{aborted, Reason} ->
-			{stop, {error, Reason}}
-	end.
+    case mnesia:transaction(fun() -> mnesia:read({machine, MachineId}) end) of
+        {atomic, [MachineRecord]} ->
+            State = #dmstate{
+                machineid = MachineId,
+                record = MachineRecord
+            },
+            {ok, State};
+        {atomic, []} ->
+            {stop, {error, invalid_machine}};
+        {aborted, Reason} ->
+            {stop, {error, Reason}}
+    end.
 
 terminate (_Reason, _State) ->
-	ok.
+    ok.
 
 code_change (_OldVsn, State, _Extra) when is_tuple(State) ->
-	{ok, State}.
+    {ok, State}.
 
 handle_cast (_Request, State) ->
-	{noreply, State}.
+    {noreply, State}.
 
 handle_call ({name}, _From, State = #dmstate{record = #machine{name = Name}}) when Name =/= [] ->
     {reply, {ok, Name}, State};
 handle_call ({name}, _From, State) ->
     {reply, {ok, atom_to_list(State#dmstate.machineid)}, State};
 handle_call ({drop, Slot}, _From, State) ->
-	case {State#dmstate.commpid, get_slot_by_num(Slot, State)} of
-	    {nil, _} ->
-	        {reply, {error, machine_down}, State};
-		{CommPid, {ok, SlotInfo}} when SlotInfo#slot.avail > 0, SlotInfo#slot.disabled =:= false ->
-			Ref = make_ref(),
-			case timer:send_after(timer:seconds(30), {timeout, Ref}) of
-				{ok, Timer} ->
-					drink_machine_comm:send_command(CommPid, {drop, Slot}),
-					receive
-						{timeout, Ref} ->
-							timer:cancel(Timer),
-							error_logger:error_msg("Drop timed out on ~p~n", [State#dmstate.machineid]),
-							{reply, {error, timeout}, State};
-						{got_response, CommPid, drop_ack} ->
-							timer:cancel(Timer),
-							decrement_slot_avail(Slot, State),
-							{reply, {ok}, State};
-						{got_response, CommPid, drop_nack} ->
-							timer:cancel(Timer),
-							error_logger:error_msg("Drop nack'd on ~p~n", [State#dmstate.machineid]),
-							{reply, {error, drop_nack}, State}
-					end;
-				{error, Reason} ->
-					error_logger:error_msg("Timer couldn't be created for ~p drop(~p)",
-											[State#dmstate.machineid,Reason]),
-					{reply, {error, timer_err}, State}
-			end;
-		{_, {ok, _SlotInfo}} ->
-			{reply, {error, not_available}, State};
-		{_, {error, Reason}} ->
-			{reply, {error, Reason}, State}
-	end;
+    case {State#dmstate.commpid, get_slot_by_num(Slot, State)} of
+        {nil, _} ->
+            {reply, {error, machine_down}, State};
+        {CommPid, {ok, SlotInfo}} when SlotInfo#slot.avail > 0, SlotInfo#slot.disabled =:= false ->
+            Ref = make_ref(),
+            case timer:send_after(timer:seconds(30), {timeout, Ref}) of
+                {ok, Timer} ->
+                    drink_machine_comm:send_command(CommPid, {drop, Slot}),
+                    receive
+                        {timeout, Ref} ->
+                            timer:cancel(Timer),
+                            error_logger:error_msg("Drop timed out on ~p~n", [State#dmstate.machineid]),
+                            {reply, {error, timeout}, State};
+                        {got_response, CommPid, drop_ack} ->
+                            timer:cancel(Timer),
+                            decrement_slot_avail(Slot, State),
+                            {reply, {ok}, State};
+                        {got_response, CommPid, drop_nack} ->
+                            timer:cancel(Timer),
+                            error_logger:error_msg("Drop nack'd on ~p~n", [State#dmstate.machineid]),
+                            {reply, {error, drop_nack}, State}
+                    end;
+                {error, Reason} ->
+                    error_logger:error_msg("Timer couldn't be created for ~p drop(~p)",
+                                            [State#dmstate.machineid,Reason]),
+                    {reply, {error, timer_err}, State}
+            end;
+        {_, {ok, _SlotInfo}} ->
+            {reply, {error, not_available}, State};
+        {_, {error, Reason}} ->
+            {reply, {error, Reason}, State}
+    end;
 handle_call ({slots}, _From, State) ->
-	Q = qlc:q([ X || X <- mnesia:table(slot), X#slot.machine =:= State#dmstate.machineid ]),
-	case mnesia:transaction(fun() -> qlc:eval(Q) end) of
-		{atomic, List} ->
-			{reply, {ok, lists:sort(List)}, State};
-		{aborted, Reason} ->
-			{reply, {error, Reason}, State}
-	end;
+    Q = qlc:q([ X || X <- mnesia:table(slot), X#slot.machine =:= State#dmstate.machineid ]),
+    case mnesia:transaction(fun() -> qlc:eval(Q) end) of
+        {atomic, List} ->
+            {reply, {ok, lists:sort(List)}, State};
+        {aborted, Reason} ->
+            {reply, {error, Reason}, State}
+    end;
 handle_call ({slot_info, SlotNum}, _From, State) ->
-	Q = qlc:q([ X || X <- mnesia:table(slot), X#slot.machine =:= State#dmstate.machineid, X#slot.num =:= SlotNum]),
-	case mnesia:transaction(fun() -> qlc:eval(Q) end) of
-		{atomic, [SlotInfo]} ->
-			{reply, {ok, SlotInfo}, State};
-		{atomic, _List} ->
-			{reply, {error, invalid_slot}, State};
-		{aborted, Reason} ->
-			{reply, {error, Reason}, State}
-	end;
+    Q = qlc:q([ X || X <- mnesia:table(slot), X#slot.machine =:= State#dmstate.machineid, X#slot.num =:= SlotNum]),
+    case mnesia:transaction(fun() -> qlc:eval(Q) end) of
+        {atomic, [SlotInfo]} ->
+            {reply, {ok, SlotInfo}, State};
+        {atomic, _List} ->
+            {reply, {error, invalid_slot}, State};
+        {aborted, Reason} ->
+            {reply, {error, Reason}, State}
+    end;
 handle_call ({set_slot_info, SlotInfo}, _From, State) ->
     Q = qlc:q([ X || X <- mnesia:table(slot), X#slot.machine =:= State#dmstate.machineid, X#slot.num =:= SlotInfo#slot.num]),
     case mnesia:transaction(fun() ->
@@ -140,24 +140,24 @@ handle_call ({set_slot_info, SlotInfo}, _From, State) ->
             {reply, {error, Reason}, State}
     end;
 handle_call ({temp}, _From, State) ->
-	case State#dmstate.latest_temp of
-		nil ->
-			{reply, {error, no_temp}, State};
-		Temp ->
-			{reply, {ok, Temp}, State}
-	end;
+    case State#dmstate.latest_temp of
+        nil ->
+            {reply, {error, no_temp}, State};
+        Temp ->
+            {reply, {ok, Temp}, State}
+    end;
 handle_call ({pasword}, _From, State) ->
-	{reply, {ok, (State#dmstate.record)#machine.password}, State};
+    {reply, {ok, (State#dmstate.record)#machine.password}, State};
 handle_call ({public_ip}, _From, State) ->
-	{reply, {ok, (State#dmstate.record)#machine.public_ip}, State};
+    {reply, {ok, (State#dmstate.record)#machine.public_ip}, State};
 handle_call ({available_sensor}, _From, State) ->
-	{reply, {ok, (State#dmstate.record)#machine.available_sensor}, State};
+    {reply, {ok, (State#dmstate.record)#machine.available_sensor}, State};
 handle_call ({machine_ip}, _From, State) ->
-	{reply, {ok, (State#dmstate.record)#machine.machine_ip}, State};
+    {reply, {ok, (State#dmstate.record)#machine.machine_ip}, State};
 handle_call ({allow_connect}, _From, State) ->
-	{reply, {ok, (State#dmstate.record)#machine.allow_connect}, State};
+    {reply, {ok, (State#dmstate.record)#machine.allow_connect}, State};
 handle_call ({admin_only}, _From, State) ->
-	{reply, {ok, (State#dmstate.record)#machine.admin_only}, State};
+    {reply, {ok, (State#dmstate.record)#machine.admin_only}, State};
 handle_call ({got_comm, CommPid}, _From, State = #dmstate{record = #machine{allow_connect = true}}) ->
     case State#dmstate.commpid of
         nil ->
@@ -175,83 +175,83 @@ handle_call ({is_alive}, _From, State = #dmstate{commpid = nil}) ->
 handle_call ({is_alive}, _From, State) ->
     {reply, true, State};
 handle_call (_Request, _From, State) ->
-	{reply, {error, unknown}, State}.
+    {reply, {error, unknown}, State}.
 
 handle_info ({got_response, CommPid, Response}, State = #dmstate{commpid = CommPid}) ->
-	case Response of
-		drop_ack ->
-			error_logger:error_msg("Drop Ack Received while not dropping!"),
-			{noreply, State};
-		drop_nack ->
-			error_logger:error_msg("Drop Nack Received while not dropping!"),
-			{noreply, State};
-		{temperature, DateTime, Temperature} ->
-			T = #temperature{
-				machine = State#dmstate.machineid, 
-				time = DateTime,
-				temperature = Temperature
-			},
-			drink_mnesia:log_temperature(T),
-			{noreply, State#dmstate{latest_temp = Temperature}};
-		{slot_status, Status} ->
-			update_slot_status(Status, State),
-			{noreply, State};
-		Response ->
-			io:format("Unknown response: ~p~n", [Response]),
-			{noreply, State}
-	end;
+    case Response of
+        drop_ack ->
+            error_logger:error_msg("Drop Ack Received while not dropping!"),
+            {noreply, State};
+        drop_nack ->
+            error_logger:error_msg("Drop Nack Received while not dropping!"),
+            {noreply, State};
+        {temperature, DateTime, Temperature} ->
+            T = #temperature{
+                machine = State#dmstate.machineid, 
+                time = DateTime,
+                temperature = Temperature
+            },
+            drink_mnesia:log_temperature(T),
+            {noreply, State#dmstate{latest_temp = Temperature}};
+        {slot_status, Status} ->
+            update_slot_status(Status, State),
+            {noreply, State};
+        Response ->
+            io:format("Unknown response: ~p~n", [Response]),
+            {noreply, State}
+    end;
 handle_info ({'EXIT', CommPid, _Reason}, State = #dmstate{commpid = CommPid}) ->
     {noreply, State#dmstate{commpid = nil}};
 handle_info ({timeout, _DropRef}, State) ->
-	{noreply, State};
+    {noreply, State};
 handle_info (_, State) ->
-	{noreply, State}.
+    {noreply, State}.
 
 % Callback from Drink Machine Comm
 got_machine_comm (MachinePid) ->
     safe_gen_call(MachinePid, {got_comm, self()}).
 
 got_response (MachinePid, Response) ->
-	MachinePid ! {got_response, self(), Response}.
+    MachinePid ! {got_response, self(), Response}.
 
 % API Utility Functions
 safe_gen_call(MachinePid, Args, Timeout) ->
-	case catch gen_server:call(MachinePid, Args, Timeout) of
-		{'EXIT', {noproc, _}} ->
-			case drink_machines_sup:is_machine(MachinePid) of
-				true ->
-					{error, machine_down};
-				false ->
-					{error, invalid_machine}
-			end;
-		Out ->
-			Out
-	end.
+    case catch gen_server:call(MachinePid, Args, Timeout) of
+        {'EXIT', {noproc, _}} ->
+            case drink_machines_sup:is_machine(MachinePid) of
+                true ->
+                    {error, machine_down};
+                false ->
+                    {error, invalid_machine}
+            end;
+        Out ->
+            Out
+    end.
 safe_gen_call(MachinePid, Args) ->
-	case catch gen_server:call(MachinePid, Args) of
-		{'EXIT', {noproc, _}} ->
-			case drink_machines_sup:is_machine(MachinePid) of
-				true ->
-					{error, machine_down};
-				false ->
-					{error, invalid_machine}
-			end;
-		Out ->
-			Out
-	end.
+    case catch gen_server:call(MachinePid, Args) of
+        {'EXIT', {noproc, _}} ->
+            case drink_machines_sup:is_machine(MachinePid) of
+                true ->
+                    {error, machine_down};
+                false ->
+                    {error, invalid_machine}
+            end;
+        Out ->
+            Out
+    end.
 
 % API
 name (MachinePid) ->
     safe_gen_call(MachinePid, {name}).
 
 drop (MachinePid, Slot) when is_integer(Slot) ->
-	safe_gen_call(MachinePid, {drop, Slot}, infinity).
+    safe_gen_call(MachinePid, {drop, Slot}, infinity).
 
 slots (MachinePid) ->
-	safe_gen_call(MachinePid, {slots}).
+    safe_gen_call(MachinePid, {slots}).
 
 slot_info (MachinePid, Slot) when is_integer(Slot) ->
-	safe_gen_call(MachinePid, {slot_info, Slot}).
+    safe_gen_call(MachinePid, {slot_info, Slot}).
 
 set_slot_info (UserRef, SlotInfo = #slot{machine = MachinePid, num = SlotNum, name = Name, price = Price, avail = Avail, disabled = Disabled}) 
         when is_reference(UserRef), is_atom(MachinePid), is_integer(SlotNum), is_list(Name), is_integer(Price), is_integer(Avail),
@@ -272,93 +272,93 @@ is_alive (Machine) when is_atom(Machine) ->
     end.
 
 temperature (MachinePid) ->
-	safe_gen_call(MachinePid, {temp}).
+    safe_gen_call(MachinePid, {temp}).
 
 password (MachinePid) ->
-	safe_gen_call(MachinePid, {password}).
+    safe_gen_call(MachinePid, {password}).
 
 public_ip (MachinePid) ->
-	safe_gen_call(MachinePid, {public_ip}).
+    safe_gen_call(MachinePid, {public_ip}).
 
 available_sensor (MachinePid) ->
-	safe_gen_call(MachinePid, {available_sensor}).
+    safe_gen_call(MachinePid, {available_sensor}).
 
 machine_ip (MachinePid) ->
-	safe_gen_call(MachinePid, {machine_ip}).
+    safe_gen_call(MachinePid, {machine_ip}).
 
 allow_connect (MachinePid) ->
-	safe_gen_call(MachinePid, {allow_connect}).
+    safe_gen_call(MachinePid, {allow_connect}).
 
 admin_only (MachinePid) ->
-	safe_gen_call(MachinePid, {admin_only}).
+    safe_gen_call(MachinePid, {admin_only}).
 
 
 % Internal Helpers
 get_slot_by_num(Num, State) ->
-	Q = qlc:q([ X || X <- mnesia:table(slot), X#slot.machine =:= State#dmstate.machineid, X#slot.num =:= Num ]),
-	case mnesia:transaction(fun() -> qlc:eval(Q) end) of
-		{atomic, [Slot]} ->
-			{ok, Slot};
-		{atomic, []} ->
-			{error, invalid_slot};
-		{aborted, Reason} ->
-			{error, Reason}
-	end.
+    Q = qlc:q([ X || X <- mnesia:table(slot), X#slot.machine =:= State#dmstate.machineid, X#slot.num =:= Num ]),
+    case mnesia:transaction(fun() -> qlc:eval(Q) end) of
+        {atomic, [Slot]} ->
+            {ok, Slot};
+        {atomic, []} ->
+            {error, invalid_slot};
+        {aborted, Reason} ->
+            {error, Reason}
+    end.
 
 decrement_slot_avail(SlotNum, State) ->
-	Qslot = qlc:q([ X || X <- mnesia:table(slot), X#slot.machine =:= State#dmstate.machineid, X#slot.num =:= SlotNum ]),
-	F = fun() ->
-		[Slot] = qlc:eval(Qslot),
-		NewSlotInfo = Slot#slot{avail = Slot#slot.avail - 1},
-		mnesia:delete_object(Slot),
-		mnesia:write(NewSlotInfo)
-	end,
-	case mnesia:transaction(F) of
-		{atomic, ok} ->
-			ok;
-		{aborted, Reason} ->
-			{error, Reason}
-	end.
+    Qslot = qlc:q([ X || X <- mnesia:table(slot), X#slot.machine =:= State#dmstate.machineid, X#slot.num =:= SlotNum ]),
+    F = fun() ->
+        [Slot] = qlc:eval(Qslot),
+        NewSlotInfo = Slot#slot{avail = Slot#slot.avail - 1},
+        mnesia:delete_object(Slot),
+        mnesia:write(NewSlotInfo)
+    end,
+    case mnesia:transaction(F) of
+        {atomic, ok} ->
+            ok;
+        {aborted, Reason} ->
+            {error, Reason}
+    end.
 
 update_slot_status(Status, State = #dmstate{record = MachineInfo}) ->
     case MachineInfo#machine.available_sensor of
         true ->
-        	case mnesia:transaction(fun() ->
-        		mnesia:write_lock_table(slot),
-        		update_slot_status_mnesia(State#dmstate.machineid, Status) 
-        	end) of
-        		{atomic, _} ->
-        			ok;
-        		{aborted, Reason} ->
-        			error_logger:error_msg("Got error updating slot status: ~p", [Reason]),
-        			{error, Reason}
-        	end;
+            case mnesia:transaction(fun() ->
+                mnesia:write_lock_table(slot),
+                update_slot_status_mnesia(State#dmstate.machineid, Status) 
+            end) of
+                {atomic, _} ->
+                    ok;
+                {aborted, Reason} ->
+                    error_logger:error_msg("Got error updating slot status: ~p", [Reason]),
+                    {error, Reason}
+            end;
         false ->
             ok
-	end.
+    end.
 
 update_slot_status_mnesia(_Machine, []) ->
-	ok;
+    ok;
 update_slot_status_mnesia(Machine, [{Slot, Status} | T]) ->
-	[SlotInfo] = qlc:eval(qlc:q([ X || X <- mnesia:table(slot), X#slot.machine =:= Machine, X#slot.num =:= Slot ])),
-	case Status of
-		1 ->
-			case SlotInfo#slot.avail of
-				0 ->
-					NewSlotInfo = SlotInfo#slot{avail = 1},
-					mnesia:delete_object(SlotInfo),
-					mnesia:write(NewSlotInfo);
-				_X ->
-					ok
-			end;
-		0 ->
-			case SlotInfo#slot.avail of
-				0 ->
-					ok;
-				_X ->
-					NewSlotInfo = SlotInfo#slot{avail = 0},
-					mnesia:delete_object(SlotInfo),
-					mnesia:write(NewSlotInfo)
-			end
-	end,
-	update_slot_status_mnesia(Machine, T).
+    [SlotInfo] = qlc:eval(qlc:q([ X || X <- mnesia:table(slot), X#slot.machine =:= Machine, X#slot.num =:= Slot ])),
+    case Status of
+        1 ->
+            case SlotInfo#slot.avail of
+                0 ->
+                    NewSlotInfo = SlotInfo#slot{avail = 1},
+                    mnesia:delete_object(SlotInfo),
+                    mnesia:write(NewSlotInfo);
+                _X ->
+                    ok
+            end;
+        0 ->
+            case SlotInfo#slot.avail of
+                0 ->
+                    ok;
+                _X ->
+                    NewSlotInfo = SlotInfo#slot{avail = 0},
+                    mnesia:delete_object(SlotInfo),
+                    mnesia:write(NewSlotInfo)
+            end
+    end,
+    update_slot_status_mnesia(Machine, T).

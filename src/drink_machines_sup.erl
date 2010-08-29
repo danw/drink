@@ -71,7 +71,7 @@ add(Machine = #machine{}) ->
                     error_logger:error_msg("Error starting machine ~p: ~p~n", [Machine#machine.machine, E]),
                     {error, E};
                 {ok, _} ->
-                    drink_web_events:trigger(machine, Machine#machine.machine),
+                    dw_events:send(drink, {machine_added, Machine#machine.machine}),
                     ok
             end;
         _ ->

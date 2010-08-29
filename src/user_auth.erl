@@ -334,7 +334,7 @@ deduct(UserInfo, Cost, MoneyReason, State) when is_tuple(UserInfo) ->
 					case catch (State#uastate.userinfo_mod):set_credits(NewUserInfo) of
 					    ok ->
         					ets:insert(State#uastate.usertable, NewUserInfo),
-        					drink_mnesia:log_money(MoneyLog),
+                            dw_events:send(drink, MoneyLog),
         					{ok, NewUserInfo};
         				{error, Reason} ->
         				    error_logger:error_msg("Failed to deduct ~b credits from ~s: ~p~n", [Cost, UserInfo#user.username, Reason]),
@@ -366,7 +366,7 @@ refund(UserInfo, Amount, MoneyReason, State) when is_tuple(UserInfo) ->
 			case catch (State#uastate.userinfo_mod):set_credits(NewUserInfo) of
 			    ok ->
         			ets:insert(State#uastate.usertable, NewUserInfo),
-        			drink_mnesia:log_money(MoneyLog),
+                    dw_events:send(drink, MoneyLog),
         			{ok, NewUserInfo};
         		{error, Reason} ->
 	    			error_logger:error_msg("Failed to refund ~s ~b credits: ~p~n", [UserInfo#user.username, Amount, Reason]),
@@ -458,11 +458,11 @@ drop_slot(UserInfo, Machine, Slot, State) when is_tuple(UserInfo), is_atom(Machi
 		    },
 			case drink_machine:drop(Machine, Slot) of
 				{ok} ->
-				    drink_mnesia:log_drop(DropLog),
+                    dw_events:send(drink, DropLog),
 					ok;
 				{error, Reason} ->
 					refund(NewUserInfo, SlotInfo#slot.price, drop_error, State),
-					drink_mnesia:log_drop(DropLog#drop_log{status={error, Reason}}),
+                    dw_events:send(drink, DropLog#drop_log{status={error, Reason}}),
 					{error, Reason}
 			end;
 		{error, Reason} ->

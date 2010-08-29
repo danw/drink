@@ -191,7 +191,7 @@ handle_info ({got_response, CommPid, Response}, State = #dmstate{commpid = CommP
                 time = DateTime,
                 temperature = Temperature
             },
-            drink_mnesia:log_temperature(T),
+            dw_events:send(drink, T),
             {noreply, State#dmstate{latest_temp = Temperature}};
         {slot_status, Status} ->
             update_slot_status(Status, State),

@@ -30,13 +30,6 @@
 -export ([get_port/1]).
 
 start(_Type, StartArgs) ->
-    case os:getenv("USER") of
-        "root" ->
-            application:set_env(drink, portoffset, 0);
-        _ ->
-            % We won't have access to restricted ports :-/
-            ok
-    end,
     drink_mnesia:initialize(),
     drink_sup:start_link(StartArgs).
 
@@ -45,10 +38,7 @@ stop(_State) ->
 
 get_port(Name) ->
     case application:get_env(Name) of
-        {ok, Port} when Port =< 1024 ->
-            {ok, PortOffset} = application:get_env(portoffset),
-            Port + PortOffset;
-            {ok, Port} ->
+        {ok, Port} ->
             Port;
         _ ->
             error_logger:error_msg("Unknown port ~p~n", [Name]),

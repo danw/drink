@@ -35,10 +35,10 @@ start_link (Args) ->
     supervisor:start_link({local,?MODULE}, ?MODULE, Args).
 
 init ([]) ->
-    case {user_auth_provider(), logger_provider()} of
-        {{ok, UserAuthChildren}, {ok, LoggerChildren}} ->
+    case user_auth_provider() of
+        {ok, UserAuthChildren} ->
             {ok, {{one_for_one, 10, 3},  % One for one restart, shutdown after 10 restarts within 3 seconds
-                common_children() ++ LoggerChildren ++ UserAuthChildren}};
+                common_children() ++ UserAuthChildren}};
         {_,_} ->
         {error, cant_start}
     end.
@@ -81,37 +81,3 @@ user_auth_provider_entry(Provider) ->
       100,
       worker,
       [user_auth]}].
-
-logger_provider() ->
-    case application:get_env(use_log_db) of
-        {ok, true} ->
-            DBPassFile = filename:join(code:priv_dir(drink), "dbpass"),
-            case filelib:is_file(DBPassFile) of
-                true ->
-                    case {application:get_env(log_db_server), application:get_env(log_db_user), application:get_env(log_db_database), file:read_file(DBPassFile)} of
-                        {{ok, LogDBServer}, {ok, LogDBUser}, {ok, LogDBDatabase}, {ok, Bin}} ->
-                            LogDBPassword = binary_to_list(Bin),
-                            {ok, [{mysql_conn,
-                                   {mysql, start_link, [drink_log, LogDBServer, undefined, LogDBUser, LogDBPassword, LogDBDatabase, fun mysql_log/4]},
-                                   permanent,
-                                   100,
-                                   worker,
-                                   [mysql]}]};
-                        {A, B, C, _} ->
-                            error_logger:error_msg("Error: Log DB misconfigured: '~p' '~p' '~p'~n", [A,B,C]),
-                            {error, log_db_args}
-                    end;
-                _ ->
-                    error_logger:error_msg("Error: Log DB Password missing, and use_log_db = true~n"),
-                    {error, log_db_password_missing}
-            end;
-        {ok, false} ->
-            {ok, []};
-        Else ->
-            error_logger:error_msg("Error: Unknown use_log_db: ~p~n", [Else]),
-            {error, unknown_use_log_db}
-    end.
-
-% Logging function for the mysql module
-mysql_log(_Module, _Line, _Level, _Fun) ->
-    ok.

@@ -32,6 +32,6 @@
 can_register (drink, _ClientInfo) -> true.
 
 % Allow verified processes full access
-filter_event (drink, {registered, _}, Event) -> {ok, Event}.
+filter_event (drink, {registered, _}, Event) -> {ok, Event};
 % TODO: filter the rest of the events by user auth
 filter_event (drink, _, Event) -> {ok, Event}.

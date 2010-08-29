@@ -1,5 +1,5 @@
 %%%-------------------------------------------------------------------
-%%% File    : drink_app.erl
+%%% File    : drink_event_permissions.erl
 %%% Author  : Dan Willemsen <dan@csh.rit.edu>
 %%% Purpose : 
 %%%
@@ -23,26 +23,15 @@
 %%%
 %%%-------------------------------------------------------------------
 
--module (drink_app).
--behaviour (application).
+-module (drink_event_permissions).
+-behaviour (dw_events_permissions).
 
--export ([start/2, stop/1]).
--export ([get_port/1]).
+-export ([can_register/2, filter_event/3]).
 
-start(_Type, StartArgs) ->
-    dw_events:register_module(drink, drink_event_permissions),
-    drink_mnesia:initialize(),
-    drink_sup:start_link(StartArgs).
+% Allow everyone to register
+can_register (drink, _ClientInfo) -> true.
 
-stop(_State) ->
-    ok.
-
-get_port(Name) ->
-    case application:get_env(Name) of
-        {ok, Port} ->
-            Port;
-        _ ->
-            error_logger:error_msg("Unknown port ~p~n", [Name]),
-            nil
-    end.
-
+% Allow verified processes full access
+filter_event (drink, {registered, _}, Event) -> {ok, Event}.
+% TODO: filter the rest of the events by user auth
+filter_event (drink, _, Event) -> {ok, Event}.

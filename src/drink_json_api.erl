@@ -30,6 +30,7 @@
 
 -include ("user.hrl").
 -include ("drink_mnesia.hrl").
+-include_lib ("drink_log/include/drink_log.hrl").
 
 args(_A, []) ->
     [];
@@ -66,13 +67,13 @@ request(U, drop, A) ->
 request(U, logs, A) ->
     case args(A, [offset, limit]) of
         [Offset, Limit] when Offset >= 0, Limit =< 100 ->
-            case drink_mnesia:get_logs(U, Offset, Limit) of
+            case drink_log:get_logs(U, Offset, Limit) of
                 {ok, Data} ->
                     ok(format_logs(Offset, Limit, Data));
                 {error, Reason} ->
                     error(Reason)
             end;
-        {error, {arg_mising, _}} ->
+        {error, {arg_missing, _}} ->
             error(arg_missing);
         _ ->
             error(invalid_args)
@@ -127,7 +128,7 @@ request(_U, temperatures, A) ->
         [From, Limit] when From >= 0, Limit >= 0, Limit =< 100000 ->
             FromSecs = From + calendar:datetime_to_gregorian_seconds({{1970, 1, 1}, {0, 0, 0}}),
             FromDate = calendar:gregorian_seconds_to_datetime(FromSecs),
-            case drink_mnesia:get_temps(FromDate, Limit) of
+            case drink_log:get_temps(FromDate, Limit) of
                 {ok, Data} ->
                     ok(format_temps(From, Limit, Data));
                 {error, Reason} ->

@@ -34,6 +34,7 @@
 -export ([password/1, public_ip/1, available_sensor/1, machine_ip/1, allow_connect/1, admin_only/1]).
 
 -include ("drink_mnesia.hrl").
+-include_lib ("drink_log/include/drink_log.hrl").
 -include_lib ("stdlib/include/qlc.hrl").
 
 -record (dmstate, {

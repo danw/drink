@@ -35,6 +35,7 @@
 
 -include ("user.hrl").
 -include ("drink_mnesia.hrl").
+-include_lib ("drink_log/include/drink_log.hrl").
 
 -record (uastate, {reftable,usertable,userinfo_mod}).
 

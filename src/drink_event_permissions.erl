@@ -26,12 +26,38 @@
 -module (drink_event_permissions).
 -behaviour (dw_events_permissions).
 
--export ([can_register/2, filter_event/3]).
+-export ([can_register/2, filter_event/4]).
+
+-include ("user.hrl").
+-include_lib ("drink_log/include/drink_log.hrl").
 
 % Allow everyone to register
-can_register (drink, _ClientInfo) -> true.
+can_register (drink, _ClientInfo) -> ok.
 
 % Allow verified processes full access
-filter_event (drink, {registered, _}, Event) -> {ok, Event};
-% TODO: filter the rest of the events by user auth
-filter_event (drink, _, Event) -> {ok, Event}.
+filter_event (drink, _FromPid, {registered, _}, Event) ->
+    error_logger:error_msg("Registered PID OK~n"),
+    {ok, Event};
+filter_event (drink, _FromPid, UserRef, Event) ->
+    error_logger:error_msg("In filter_event with UserRef~n"),
+    case user_auth:can_admin_noblock(UserRef) of
+        true -> filter_event_admin(drink, UserRef, Event);
+        false -> filter_event_user(drink, UserRef, Event)
+    end.
+
+filter_event_admin(drink, UserRef, Event) ->
+    error_logger:error_msg("admin OK~n"),
+    {ok, Event}.
+
+filter_event_user(drink, UserRef, Event = #money_log{ username = Username }) ->
+    case user_auth:user_info_noblock(UserRef) of
+        {ok, #user{ username = Username }} ->
+            error_logger:error_msg("for user ~p OK~n", [Username]),
+            {ok, Event};
+        _ ->
+            error_logger:error_msg("not for user FAIL~n"),
+            false
+    end;
+filter_event_user(drink, _, Event) ->
+    error_logger:error_msg("default user OK~n"),
+    {ok, Event}.

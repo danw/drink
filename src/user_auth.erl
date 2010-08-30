@@ -29,15 +29,15 @@
 -export ([start_link/1]).
 -export ([init/1]).
 -export ([handle_call/3, handle_cast/2, handle_info/2, terminate/2, code_change/3]).
--export ([user/1, user/2, auth/1, auth/2, admin/2, can_admin/1, 
-          user_info/1, delete_ref/1, drop/3, add_credits/3, 
+-export ([user/1, user/2, auth/1, auth/2, admin/2, can_admin/1, can_admin_noblock/1, 
+          user_info/1, user_info_noblock/1, delete_ref/1, drop/3, add_credits/3, 
           dec_credits/3, mod_credits/3, set_admin/2, add_ibutton/2, del_ibutton/2]).
 
 -include ("user.hrl").
 -include ("drink_mnesia.hrl").
 -include_lib ("drink_log/include/drink_log.hrl").
 
--record (uastate, {reftable,usertable,userinfo_mod}).
+-record (uastate, {userinfo_mod}).
 
 %%%%%%%%%%%%%%%%%%%%%%%%
 % Gen_Server Callbacks %
@@ -47,12 +47,10 @@ start_link (UserInfoMod) ->
 
 init (UserInfoMod) ->
 	process_flag(trap_exit, true),
-	RefTable = ets:new(ref2user, [set, private]),
-	UserTable = ets:new(userinfo, [set, private, {keypos, 2}]),
+	ets:new(ref2user, [set, protected, named_table]),
+	ets:new(userinfo, [set, protected, {keypos, 2}, named_table]),
 	ok = UserInfoMod:init(),
 	{ok, #uastate{
-	    reftable = RefTable,
-            usertable = UserTable,
 	    userinfo_mod = UserInfoMod}}.
 
 handle_call ({user, Username}, _From, State) when is_list(Username) ->
@@ -86,7 +84,7 @@ handle_call ({auth, {webauth, Username}}, _From, State) when is_list(Username) -
 handle_call ({admin, Admin, Username}, _From, State) when is_reference(Admin), is_list(Username) ->
 	case get_user(Username, State) of
 		{ok, User} ->
-			case is_admin(Admin, State) of
+			case is_admin(Admin) of
 				true ->
 				    {ok, AdminUser, _Perms} = get_from_ref(Admin, State),
 					{reply, {ok, create_user_ref(User, [read, write, ibutton], AdminUser#user.username, State)}, State};
@@ -97,7 +95,7 @@ handle_call ({admin, Admin, Username}, _From, State) when is_reference(Admin), i
 			{reply, {error, Reason}, State}
 	end;
 handle_call ({can_admin, UserRef}, _From, State) when is_reference(UserRef) ->
-    {reply, is_admin(UserRef, State), State};
+    {reply, is_admin(UserRef), State};
 handle_call ({user_info, UserRef}, _From, State) when is_reference(UserRef) ->
 	case get_from_ref(UserRef, State) of
 		{ok, UserInfo, Perms} ->
@@ -218,7 +216,7 @@ handle_call (_Request, _From, State) ->
 	{reply, {error, unknown_call}, State}.
 
 handle_cast ({delete_ref, UserRef}, State) when is_reference(UserRef) ->
-	ets:delete(State#uastate.reftable, UserRef),
+	ets:delete(ref2user, UserRef),
 	{noreply, State};
 handle_cast (_Request, State) ->
 	{noreply, State}.
@@ -264,10 +262,21 @@ admin(User, Username) when is_reference(User), is_list(Username) ->
 user_info(UserRef) when is_reference(UserRef) ->
 	gen_server:call(?MODULE, {user_info, UserRef}).
 
+user_info_noblock(UserRef) when is_reference(UserRef) ->
+ 	case get_from_ref(UserRef, undefined) of
+		{ok, UserInfo, Perms} ->
+			{ok, respect_read_permissions(UserInfo, #user{}, Perms)};
+		{error, Reason} ->
+			{error, Reason}
+	end.
+
 can_admin(nil) ->
     false;
 can_admin(UserRef) when is_reference(UserRef) ->
     gen_server:call(?MODULE, {can_admin, UserRef}).
+
+can_admin_noblock(UserRef) when is_reference(UserRef) ->
+    is_admin(UserRef).
 
 delete_ref(UserRef) when is_reference(UserRef) ->
 	gen_server:cast(?MODULE, {delete_ref, UserRef}).
@@ -334,7 +343,7 @@ deduct(UserInfo, Cost, MoneyReason, State) when is_tuple(UserInfo) ->
 					},
 					case catch (State#uastate.userinfo_mod):set_credits(NewUserInfo) of
 					    ok ->
-        					ets:insert(State#uastate.usertable, NewUserInfo),
+        					ets:insert(userinfo, NewUserInfo),
                             dw_events:send(drink, MoneyLog),
         					{ok, NewUserInfo};
         				{error, Reason} ->
@@ -366,7 +375,7 @@ refund(UserInfo, Amount, MoneyReason, State) when is_tuple(UserInfo) ->
 			},
 			case catch (State#uastate.userinfo_mod):set_credits(NewUserInfo) of
 			    ok ->
-        			ets:insert(State#uastate.usertable, NewUserInfo),
+        			ets:insert(userinfo, NewUserInfo),
                     dw_events:send(drink, MoneyLog),
         			{ok, NewUserInfo};
         		{error, Reason} ->
@@ -389,7 +398,7 @@ user_set_admin(UserInfo, Admin, State) when is_tuple(UserInfo) ->
                     NewUserInfo = User#user{admin = Admin},
                     case catch (State#uastate.userinfo_mod):set_admin(NewUserInfo) of
                         ok ->
-                            ets:insert(State#uastate.usertable, NewUserInfo),
+                            ets:insert(userinfo, NewUserInfo),
                             {ok, NewUserInfo};
                         {error, Reason} ->
                             {error, Reason};
@@ -411,7 +420,7 @@ user_add_ibutton(UserInfo, IButton, State) when is_tuple(UserInfo) ->
                     NewUserInfo = User#user{ibuttons=User#user.ibuttons ++ [IButton]},
                     case catch (State#uastate.userinfo_mod):add_ibutton(NewUserInfo#user.username, IButton) of
                         ok ->
-                            ets:insert(State#uastate.usertable, NewUserInfo),
+                            ets:insert(userinfo, NewUserInfo),
                             {ok, NewUserInfo};
                         {error, Reason} ->
                             {error, Reason};
@@ -433,7 +442,7 @@ user_del_ibutton(UserInfo, IButton, State) when is_tuple(UserInfo) ->
                     NewUserInfo = User#user{ibuttons=User#user.ibuttons -- [IButton]},
                     case catch (State#uastate.userinfo_mod):del_ibutton(NewUserInfo#user.username, IButton) of
                         ok ->
-                            ets:insert(State#uastate.usertable, NewUserInfo),
+                            ets:insert(userinfo, NewUserInfo),
                             {ok, NewUserInfo};
                         {error, Reason} ->
                             {error, Reason};
@@ -476,6 +485,10 @@ can_drop(Perms) ->
 can_write(Perms) ->
     lists:member(write, Perms).
 
+% For times when we don't have the State variable
+% This may return false if we don't have the row in the user info cache
+is_admin(UserRef) when is_reference(UserRef) -> is_admin(UserRef, undefined).
+
 is_admin(UserRef, State) when is_reference(UserRef) ->
 	case get_from_ref(UserRef, State) of
 		{ok, UserInfo, Perms} ->
@@ -496,7 +509,7 @@ respect_read_permissions(UserInfo, Result, []) ->
 	Result#user{username=UserInfo#user.username}.
 
 get_from_ref(UserRef, State) when is_reference(UserRef) ->
-	case ets:lookup(State#uastate.reftable, UserRef) of
+	case ets:lookup(ref2user, UserRef) of
 		[] ->
 			{error, invalid_ref};
 		[{UserRef, Username, Perms, Admin}] ->
@@ -508,9 +521,9 @@ get_from_ref(UserRef, State) when is_reference(UserRef) ->
 			end
 	end.
 
-create_user_ref(Username, Perms, Admin, State) when is_list(Username), is_list(Perms) ->
+create_user_ref(Username, Perms, Admin, _State) when is_list(Username), is_list(Perms) ->
 	Ref = make_ref(),
-	ets:insert(State#uastate.reftable, {Ref, Username, Perms, Admin}),
+	ets:insert(ref2user, {Ref, Username, Perms, Admin}),
 	Ref;
 create_user_ref(Username, Perm, Admin, State) when is_list(Username), is_atom(Perm) ->
 	create_user_ref(Username, [Perm], Admin, State);
@@ -521,23 +534,24 @@ create_user_ref(User, Perms, State) ->
     create_user_ref(User, Perms, nil, State).
 
 get_user(Username, State) when is_list(Username) ->
-	case ets:lookup(State#uastate.usertable, Username) of
-		[] ->
+	case {State, ets:lookup(userinfo, Username)} of
+		{undefined, []} -> {error, state_undefined};
+        {_, []}->
 			case (State#uastate.userinfo_mod):get_user(username, Username) of
 				{ok, UserInfo} ->
-					ets:insert(State#uastate.usertable, UserInfo),
+					ets:insert(userinfo, UserInfo),
 					{ok, UserInfo};
 				{error, Reason} ->
 					{error, Reason}
 			end;
-		[UserInfo] ->
+		{_, [UserInfo]} ->
 			{ok, UserInfo}
 	end.
 
 get_user_from_ibutton(Ibutton, State) when is_list(Ibutton) ->
     case (State#uastate.userinfo_mod):get_user(ibutton, Ibutton) of
         {ok, UserInfo} ->
-            ets:insert(State#uastate.usertable, UserInfo),
+            ets:insert(userinfo, UserInfo),
             {ok, UserInfo};
         {error, Reason} ->
             {error, Reason}

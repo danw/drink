@@ -159,16 +159,21 @@ request(U, addmachine, A) ->
             case args(A, [machine, name, password, public_ip, available_sensor, machine_ip, allow_connect, admin_only]) of
                 [MachineAtom, MachineName, MachinePassword, MachinePublicIP, MachineAvailableSensor,
                  MachineIP, MachineAllowConnect, MachineAdminOnly] ->
-                    case drink_machines_sup:add(#machine{machine = MachineAtom,
-                                                         password = MachinePassword,
-                                                         name = MachineName,
-                                                         public_ip = MachinePublicIP,
-                                                         available_sensor = MachineAvailableSensor,
-                                                         machine_ip = MachineIP,
-                                                         allow_connect = MachineAllowConnect,
-                                                         admin_only = MachineAdminOnly}) of
-                        ok -> ok(true);
-                        _  -> error(unknown_error)
+                    error_logger:error_msg("Allow Connect: ~p~n", [MachineAllowConnect]),
+                    case {list_to_ip(MachinePublicIP), list_to_ip(MachineIP)} of
+                        {{ok, MPublicIP}, {ok, MIP}} ->
+                            case drink_machines_sup:add(#machine{machine = list_to_atom(MachineAtom),
+                                                                 password = MachinePassword,
+                                                                 name = MachineName,
+                                                                 public_ip = MPublicIP,
+                                                                 available_sensor = MachineAvailableSensor,
+                                                                 machine_ip = MIP,
+                                                                 allow_connect = MachineAllowConnect,
+                                                                 admin_only = MachineAdminOnly}) of
+                                ok -> ok(true);
+                                _  -> error(unknown_error)
+                            end;
+                        _ -> error(ip_conversion)
                     end;
                 _ -> error(invalid_args)
             end;
@@ -248,6 +253,18 @@ ip_to_list(false) ->
     false;
 ip_to_list({A,B,C,D}) ->
     lists:flatten(io_lib:format("~w.~w.~w.~w", [A,B,C,D])).
+
+list_to_ip({A,B,C,D}) when is_binary(A) ->
+    list_to_ip({binary_to_list(A), binary_to_list(B), binary_to_list(C), binary_to_list(D)});
+list_to_ip({A,B,C,D}) ->
+    case {string:to_integer(A), string:to_integer(B), string:to_integer(C), string:to_integer(D)} of
+        {{AI, ""}, {BI, ""}, {CI, ""}, {DI, ""}} ->
+            {ok, {AI, BI, CI, DI}};
+        _ ->
+            {error, ip_conversion_failed}
+    end;
+list_to_ip(Ip) when is_list(Ip) ->
+    list_to_ip(list_to_tuple(re:split(Ip, "\\."))).
 
 userref_to_struct(UserRef) ->
     case user_auth:user_info(UserRef) of

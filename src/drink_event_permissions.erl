@@ -29,6 +29,7 @@
 -export ([can_register/2, filter_event/4]).
 
 -include ("user.hrl").
+-include ("drink_mnesia.hrl").
 -include_lib ("drink_log/include/drink_log.hrl").
 
 % Allow everyone to register
@@ -58,6 +59,26 @@ filter_event_user(drink, UserRef, Event = #money_log{ username = Username }) ->
             error_logger:error_msg("not for user FAIL~n"),
             false
     end;
+filter_event_user(drink, UserRef, {user_changed, Username, Changes}) ->
+    case user_auth:user_info_noblock(UserRef) of
+        {ok, #user{ username = Username }} ->
+            {ok, {user_changed, Username, filter_user_changes(Changes)}};
+        _ ->
+            false
+    end;
+filter_event_user(drink, UserRef, Event = {machine, Machine}) ->
+    case Machine#machine.admin_only of
+        true -> false;
+        false -> 
+            {ok, Event}
+    end;
+% TODO: filter temps for admin_only machines?
 filter_event_user(drink, _, Event) ->
     error_logger:error_msg("default user OK~n"),
     {ok, Event}.
+
+filter_user_changes([]) -> [];
+% Users can't see their own ibuttons
+filter_user_changes([{del_ibutton,_}|T]) -> [{del_ibutton, ""}] ++ filter_user_changes(T);
+filter_user_changes([{add_ibutton,_}|T]) -> [{add_ibutton, ""}] ++ filter_user_changes(T);
+filter_user_changes([Other|T]) -> [Other] ++ filter_user_changes(T).

@@ -399,6 +399,7 @@ user_set_admin(UserInfo, Admin, State) when is_tuple(UserInfo) ->
                     case catch (State#uastate.userinfo_mod):set_admin(NewUserInfo) of
                         ok ->
                             ets:insert(userinfo, NewUserInfo),
+                            dw_events:send(drink, {user_changed, User#user.username, [{admin, User#user.admin, NewUserInfo#user.admin}]}),
                             {ok, NewUserInfo};
                         {error, Reason} ->
                             {error, Reason};
@@ -421,6 +422,7 @@ user_add_ibutton(UserInfo, IButton, State) when is_tuple(UserInfo) ->
                     case catch (State#uastate.userinfo_mod):add_ibutton(NewUserInfo#user.username, IButton) of
                         ok ->
                             ets:insert(userinfo, NewUserInfo),
+                            dw_events:send(drink, {user_changed, User#user.username, [{add_ibutton, IButton}]}),
                             {ok, NewUserInfo};
                         {error, Reason} ->
                             {error, Reason};
@@ -443,6 +445,7 @@ user_del_ibutton(UserInfo, IButton, State) when is_tuple(UserInfo) ->
                     case catch (State#uastate.userinfo_mod):del_ibutton(NewUserInfo#user.username, IButton) of
                         ok ->
                             ets:insert(userinfo, NewUserInfo),
+                            dw_events:send(drink, {user_changed, User#user.username, [{del_ibutton, IButton}]}),
                             {ok, NewUserInfo};
                         {error, Reason} ->
                             {error, Reason};

@@ -83,6 +83,7 @@ del(Machine) ->
         ok ->
             case mnesia:transaction(fun() -> mnesia:delete({machine, Machine}) end) of
                 {atomic, ok} ->
+                    dw_events:send(drink, {machine_deleted, Machine}),
                     ok;
                 Reason ->
                     error_logger:error_msg("drink_machines_sup:del(mnesia) -> ~p~n", [Reason]),

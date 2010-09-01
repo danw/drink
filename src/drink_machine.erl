@@ -177,7 +177,7 @@ handle_call ({is_alive}, _From, State = #dmstate{commpid = nil}) ->
 handle_call ({is_alive}, _From, State) ->
     {reply, true, State};
 handle_call ({delete_machine}, _From, State) ->
-    {stop, ok, ok, State};
+    {stop, {shutdown, delete_machine}, ok, State};
 handle_call (_Request, _From, State) ->
     {reply, {error, unknown}, State}.
 

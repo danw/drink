@@ -28,176 +28,203 @@
 -export ([request/3]).
 -export ([machine_stat/2]).
 
+-export ([currentuser/1, drop/3, logs/3, machines/1, moduser/5, setslot/7, 
+          temperatures/3, userinfo/2, addmachine/9, delmachine/2]).
+
 -include ("user.hrl").
 -include ("drink_mnesia.hrl").
 -include_lib ("drink_log/include/drink_log.hrl").
 
+arg(atom, V) when is_atom(V) -> {ok, V};
+arg(atom, V) when is_list(V) -> {ok, list_to_atom(V)};
+arg(atom, _) -> {error, unknown_conversion};
+arg(ip, V) when is_tuple(V) -> {ok, V};
+arg(ip, V) when is_list(V) -> inet:getaddr(V, inet);
+arg(ip, _) -> {error, unknown_conversion};
+arg(boolean, true) -> {ok, true};
+arg(boolean, false) -> {ok, false};
+arg(boolean, V) when is_atom(V) -> {error, unknown_boolean};
+arg(boolean, V) when is_list(V) -> arg(boolean, list_to_atom(V));
+arg(boolean, _) -> {error, unknown_conversion};
+arg(integer, V) when is_integer(V) -> {ok, V};
+arg(integer, V) when is_list(V) ->
+    case string:to_integer(V) of
+        {Int, ""} -> {ok, Int};
+        _ -> {error, bad_conversion}
+    end;
+arg(integer, _) -> {error, unknown_conversion}.
+
 args(_A, []) ->
     [];
-args(A, [H|T]) ->
+args(A, [{H,Type}|T]) ->
+    case lists:keyfind(H, 1, A) of
+        false -> {error, {arg_missing, H}};
+        {H, V} ->
+            case arg(Type, V) of
+                {ok, Val} -> [Val] ++ args(A, T);
+                _ -> {error, {invalid_arg, H}}
+            end
+    end;
+args(A, [{H}|T]) ->
     case lists:keyfind(H, 1, A) of
         false -> {error, {arg_missing, H}};
         {H, V} -> [V] ++ args(A, T)
     end.
 
 request(U, currentuser, _) ->
-    userref_to_struct(U);
-
+    api(U, currentuser, nil, []);
 request(U, drop, A) ->
-    case args(A, [machine, slot]) of
-        [Machine, Slot] ->
-            case user_auth:drop(U, list_to_atom(Machine), Slot) of
-                ok ->
-                    ok(true);
-                {error, permission_denied} ->
-                    error(permission_denied);
-                {error, slot_empty} ->
-                    error(slot_empty);
-                {error, machine_down} ->
-                    error(machine_down);
-                {error, Reason} ->
-                    error(Reason);
-                _Else ->
-                    error(unknown)
-            end;
-        {error, {arg_missing, _}} ->
-            error(missing_arg)
-    end;
-
+    api(U, drop, A, [{machine, atom},
+                     {slot, integer}]);
 request(U, logs, A) ->
-    case args(A, [offset, limit]) of
-        [Offset, Limit] when Offset >= 0, Limit =< 100 ->
-            case drink_log:get_logs(U, Offset, Limit) of
-                {ok, Data} ->
-                    ok(format_logs(Offset, Limit, Data));
-                {error, Reason} ->
-                    error(Reason)
-            end;
-        {error, {arg_missing, _}} ->
-            error(arg_missing);
-        _ ->
-            error(invalid_args)
-    end;
-
-request(U, machines, _) ->
-    ok({struct, machines(user_auth:can_admin(U), drink_machines_sup:machines())});
-
+    api(U, logs, A, [{offset, integer},
+                     {limit, integer}]);
+request(U, machines, A) ->
+    api(U, machines, A, []);
 request(U, moduser, A) ->
-    case args(A, [username, attr, value, reason]) of
-        [UserName, Attr, Value, ModReason] ->
-            case user_auth:admin(U, UserName) of
-                {ok, User} ->
-                    mod_user(User, list_to_atom(Attr), Value, ModReason);
-                {error, permission_denied} ->
-                    error(permission_denied);
-                {error, invalid_user} ->
-                    error(invalid_user);
-                {error, Reason} ->
-                    error(Reason);
-                _Else ->
-                    error(unknown)
-            end;
-        _ ->
-            error(invalid_args)
-    end;
-
+    api(U, moduser, A, [{username},
+                        {attr, atom},
+                        {value},
+                        {reason}]);
 request(U, setslot, A) ->
-    case args(A, [machine, slot, name, price, available, disabled]) of
-        [Machine, Slot, Name, Price, Avail, Disabled] when is_boolean(Disabled) ->
-            case drink_machine:set_slot_info(U, #slot{
-                machine = list_to_atom(Machine),
-                num = Slot,
-                name = Name,
-                price = Price,
-                avail = Avail,
-                disabled = Disabled
-            }) of
-                ok ->
-                    ok({struct, machines(user_auth:can_admin(U), drink_machines_sup:machines())});
-                {error, permission_denied} ->
-                    error(permission_denied);
-                {error, Reason} ->
-                    error(Reason)
-            end;
-        _ ->
-            error(invalid_args)
-    end;
-
-request(_U, temperatures, A) ->
-    case args(A, [from, length]) of
-        [From, Limit] when From >= 0, Limit >= 0, Limit =< 100000 ->
-            FromSecs = From + calendar:datetime_to_gregorian_seconds({{1970, 1, 1}, {0, 0, 0}}),
-            FromDate = calendar:gregorian_seconds_to_datetime(FromSecs),
-            case drink_log:get_temps(FromDate, Limit) of
-                {ok, Data} ->
-                    ok(format_temps(From, Limit, Data));
-                {error, Reason} ->
-                    error(Reason)
-            end;
-        _ ->
-            error(invalid_args)
-    end;
-
+    api(U, setslot, A, [{machine, atom},
+                        {slot, integer},
+                        {name},
+                        {price},
+                        {avail, boolean},
+                        {disabled, boolean}], require_admin);
+request(U, temperatures, A) ->
+    api(U, temperatures, A, [{from, integer},
+                             {length, integer}]);
 request(U, userinfo, A) ->
-    case args(A, [user]) of
-        [UserName] ->
-            case user_auth:user(U, UserName) of
-                {ok, User} ->
-                    Ret = userref_to_struct(User),
-                    user_auth:delete_ref(User),
-                    Ret;
-                _Else ->
-                    error(invalid_user)
-            end;
-        _Else ->
-            error(invalid_args)
-    end;
-
+    api(U, userinfo, A, [{user}]);
 request(U, addmachine, A) ->
-    case user_auth:can_admin(U) of
-        true ->
-            case args(A, [machine, name, password, public_ip, available_sensor, machine_ip, allow_connect, admin_only]) of
-                [MachineAtom, MachineName, MachinePassword, MachinePublicIP, MachineAvailableSensor,
-                 MachineIP, MachineAllowConnect, MachineAdminOnly] ->
-                    error_logger:error_msg("Allow Connect: ~p~n", [MachineAllowConnect]),
-                    case {list_to_ip(MachinePublicIP), list_to_ip(MachineIP)} of
-                        {{ok, MPublicIP}, {ok, MIP}} ->
-                            case drink_machines_sup:add(#machine{machine = list_to_atom(MachineAtom),
-                                                                 password = MachinePassword,
-                                                                 name = MachineName,
-                                                                 public_ip = MPublicIP,
-                                                                 available_sensor = MachineAvailableSensor,
-                                                                 machine_ip = MIP,
-                                                                 allow_connect = MachineAllowConnect,
-                                                                 admin_only = MachineAdminOnly}) of
-                                ok -> ok(true);
-                                _  -> error(unknown_error)
-                            end;
-                        _ -> error(ip_conversion)
-                    end;
-                _ -> error(invalid_args)
-            end;
-        false ->
-            error(permission_denied)
-    end;
-
+    api(U, addmachine, A, [{machine, atom},
+                           {name},
+                           {password},
+                           {public_ip, ip},
+                           {available_sensor, boolean},
+                           {machine_ip, ip},
+                           {allow_connect, boolean},
+                           {admin_only, boolean}], require_admin);
 request(U, delmachine, A) ->
-    case user_auth:can_admin(U) of
-        true ->
-            case args(A, [machine]) of
-                [Machine] ->
-                    case drink_machines_sup:del(list_to_atom(Machine)) of
-                        ok -> ok(true);
-                        _ -> error(unknown_error)
-                    end;
-                _ -> error(invalid_args)
-            end;
-        false ->
-            error(permission_denied)
-    end;
-
+    api(U, delmachine, A, [{machine, atom}], require_admin);
 request(_, _, _) ->
     error(unknown_command).
+
+api(UserRef, Api, A, Args, require_admin) ->
+    case user_auth:can_admin(UserRef) of
+        true -> api(UserRef, Api, A, Args);
+        false -> error(permission_denied)
+    end.
+
+api(UserRef, Api, A, Args) ->
+    error_logger:error_msg("Got args: ~p~n", [[UserRef] ++ args(A, Args)]),
+    apply(?MODULE, Api, [UserRef] ++ args(A, Args)).
+
+currentuser(U) ->
+    userref_to_struct(U).
+
+drop(U, Machine, Slot) ->
+    case user_auth:drop(U, Machine, Slot) of
+        ok ->
+            ok(true);
+        {error, permission_denied} ->
+            error(permission_denied);
+        {error, slot_empty} ->
+            error(slot_empty);
+        {error, machine_down} ->
+            error(machine_down);
+        {error, Reason} ->
+            error(Reason);
+        _Else ->
+            error(unknown)
+    end.
+
+logs(U, Offset, Limit) when Offset >= 0, Limit =< 100 ->
+    case drink_log:get_logs(U, Offset, Limit) of
+        {ok, Data} ->
+            ok(format_logs(Offset, Limit, Data));
+        {error, Reason} ->
+            error(Reason)
+    end;
+logs(_, _, _) ->
+    error(invalid_args).
+
+machines(U) ->
+    ok({struct, dump_machines(user_auth:can_admin(U), drink_machines_sup:machines())}).
+
+moduser(U, UserName, Attr, Value, ModReason) ->
+    case user_auth:admin(U, UserName) of
+        {ok, User} ->
+            mod_user(User, Attr, Value, ModReason);
+        {error, permission_denied} ->
+            error(permission_denied);
+        {error, invalid_user} ->
+            error(invalid_user);
+        {error, Reason} ->
+            error(Reason);
+        _Else ->
+            error(unknown)
+    end.
+
+setslot(U, Machine, Slot, Name, Price, Avail, Disabled) ->
+    case drink_machine:set_slot_info(U, #slot{
+        machine = Machine,
+        num = Slot,
+        name = Name,
+        price = Price,
+        avail = Avail,
+        disabled = Disabled
+    }) of
+        ok ->
+            ok({struct, dump_machines(user_auth:can_admin(U), drink_machines_sup:machines())});
+        {error, permission_denied} ->
+            error(permission_denied);
+        {error, Reason} ->
+            error(Reason)
+    end.
+
+temperatures(_, From, Limit) when From >= 0, Limit >= 0, Limit =< 100000 ->
+    FromSecs = From + calendar:datetime_to_gregorian_seconds({{1970, 1, 1}, {0, 0, 0}}),
+    FromDate = calendar:gregorian_seconds_to_datetime(FromSecs),
+    case drink_log:get_temps(FromDate, Limit) of
+        {ok, Data} ->
+            ok(format_temps(From, Limit, Data));
+        {error, Reason} ->
+            error(Reason)
+    end;
+temperatures(_, _, _) ->
+    error(invalid_args).
+
+userinfo(U, UserName) ->
+    case user_auth:user(U, UserName) of
+       {ok, User} ->
+           Ret = userref_to_struct(User),
+           user_auth:delete_ref(User),
+           Ret;
+       _Else ->
+           error(invalid_user)
+    end.
+
+addmachine(_, MachineAtom, MachineName, MachinePassword, MachinePublicIP, MachineAvailableSensor, MachineIP, MachineAllowConnect, MachineAdminOnly) ->
+    case drink_machines_sup:add(#machine{machine = MachineAtom,
+                                         password = MachinePassword,
+                                         name = MachineName,
+                                         public_ip = MachinePublicIP,
+                                         available_sensor = MachineAvailableSensor,
+                                         machine_ip = MachineIP,
+                                         allow_connect = MachineAllowConnect,
+                                         admin_only = MachineAdminOnly}) of
+        ok -> ok(true);
+        _  -> error(unknown_error)
+    end.
+
+delmachine(_, Machine) ->
+    case drink_machines_sup:del(Machine) of
+        ok -> ok(true);
+        _ -> error(unknown_error)
+    end.
 
 ok(Data) ->
     {ok, Data}.
@@ -205,10 +232,10 @@ ok(Data) ->
 error(Reason) ->
     {error, Reason}.
 
-machines(_Admin, []) ->
+dump_machines(_Admin, []) ->
     [];
-machines(Admin, [M|Machines]) when is_boolean(Admin) ->
-    [{M, machine_stat(Admin, M)}] ++ machines(Admin, Machines).
+dump_machines(Admin, [M|Machines]) when is_boolean(Admin) ->
+    [{M, machine_stat(Admin, M)}] ++ dump_machines(Admin, Machines).
 
 machine_stat(false, Machine) ->
     case drink_machine:slots(Machine) of
@@ -268,18 +295,6 @@ ip_to_list(false) ->
     false;
 ip_to_list({A,B,C,D}) ->
     lists:flatten(io_lib:format("~w.~w.~w.~w", [A,B,C,D])).
-
-list_to_ip({A,B,C,D}) when is_binary(A) ->
-    list_to_ip({binary_to_list(A), binary_to_list(B), binary_to_list(C), binary_to_list(D)});
-list_to_ip({A,B,C,D}) ->
-    case {string:to_integer(A), string:to_integer(B), string:to_integer(C), string:to_integer(D)} of
-        {{AI, ""}, {BI, ""}, {CI, ""}, {DI, ""}} ->
-            {ok, {AI, BI, CI, DI}};
-        _ ->
-            {error, ip_conversion_failed}
-    end;
-list_to_ip(Ip) when is_list(Ip) ->
-    list_to_ip(list_to_tuple(re:split(Ip, "\\."))).
 
 userref_to_struct(UserRef) ->
     case user_auth:user_info(UserRef) of

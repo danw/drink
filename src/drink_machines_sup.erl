@@ -81,13 +81,15 @@ add(Machine = #machine{}) ->
 del(Machine) ->
     case drink_machine:delete_machine(Machine) of
         ok ->
-            case mnesia:transaction(fun() -> mnesia:delete(machine, Machine) end) of
+            case mnesia:transaction(fun() -> mnesia:delete({machine, Machine}) end) of
                 {atomic, ok} ->
                     ok;
-                _ ->
+                Reason ->
+                    error_logger:error_msg("drink_machines_sup:del(mnesia) -> ~p~n", [Reason]),
                     {error, mnesia}
             end;
-        _ ->
+        Reason ->
+            error_logger:error_msg("drink_machines_sup:del -> ~p~n", [Reason]),
             {error, termination_failed}
     end.
 

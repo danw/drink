@@ -181,6 +181,21 @@ request(U, addmachine, A) ->
             error(permission_denied)
     end;
 
+request(U, delmachine, A) ->
+    case user_auth:can_admin(U) of
+        true ->
+            case args(A, [machine]) of
+                [Machine] ->
+                    case drink_machines_sup:del(list_to_atom(Machine)) of
+                        ok -> ok(true);
+                        _ -> error(unknown_error)
+                    end;
+                _ -> error(invalid_args)
+            end;
+        false ->
+            error(permission_denied)
+    end;
+
 request(_, _, _) ->
     error(unknown_command).
 

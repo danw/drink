@@ -27,7 +27,7 @@
 -behaviour (supervisor).
 
 -export ([start_link/0, init/1]).
--export ([machines/0, is_machine/1, add/1]).
+-export ([machines/0, is_machine/1, add/1, del/1]).
 
 -include ("drink_mnesia.hrl").
 -include_lib ("stdlib/include/qlc.hrl").
@@ -76,6 +76,19 @@ add(Machine = #machine{}) ->
             end;
         _ ->
             {error, mnesia}
+    end.
+
+del(Machine) ->
+    case drink_machine:delete_machine(Machine) of
+        ok ->
+            case mnesia:transaction(fun() -> mnesia:delete(machine, Machine) end) of
+                {atomic, ok} ->
+                    ok;
+                _ ->
+                    {error, mnesia}
+            end;
+        _ ->
+            {error, termination_failed}
     end.
 
 machine_names([{_,Pid,_,_}|T]) ->

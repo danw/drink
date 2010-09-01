@@ -32,6 +32,7 @@
 -export ([got_response/2, got_machine_comm/1]).
 -export ([name/1, slots/1, drop/2, temperature/1, slot_info/2, is_alive/1, set_slot_info/2]).
 -export ([password/1, public_ip/1, available_sensor/1, machine_ip/1, allow_connect/1, admin_only/1]).
+-export ([delete_machine/1]).
 
 -include ("drink_mnesia.hrl").
 -include_lib ("drink_log/include/drink_log.hrl").
@@ -175,6 +176,8 @@ handle_call ({is_alive}, _From, State = #dmstate{commpid = nil}) ->
     {reply, false, State};
 handle_call ({is_alive}, _From, State) ->
     {reply, true, State};
+handle_call ({delete_machine}, _From, State) ->
+    {stop, ok, ok, State};
 handle_call (_Request, _From, State) ->
     {reply, {error, unknown}, State}.
 
@@ -272,6 +275,9 @@ is_alive (Machine) when is_atom(Machine) ->
             Out
     end.
 
+delete_machine (Machine) ->
+    safe_gen_call(Machine, {delete_machine}).
+
 temperature (MachinePid) ->
     safe_gen_call(MachinePid, {temp}).
 
@@ -292,7 +298,6 @@ allow_connect (MachinePid) ->
 
 admin_only (MachinePid) ->
     safe_gen_call(MachinePid, {admin_only}).
-
 
 % Internal Helpers
 get_slot_by_num(Num, State) ->

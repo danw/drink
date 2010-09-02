@@ -29,7 +29,7 @@
 -export ([machine_stat/2]).
 
 -export ([currentuser/1, drop/3, logs/3, machines/1, moduser/5, setslot/7, 
-          temperatures/3, userinfo/2, addmachine/9, delmachine/2]).
+          temperatures/3, userinfo/2, addmachine/9, modmachine/9, delmachine/2]).
 
 -include ("user.hrl").
 -include ("drink_mnesia.hrl").
@@ -107,6 +107,15 @@ request(U, addmachine, A) ->
                            {machine_ip, ip},
                            {allow_connect, boolean},
                            {admin_only, boolean}], require_admin);
+request(U, modmachine, A) ->
+    api(U, modmachine, A, [{machine, atom},
+                           {name},
+                           {password},
+                           {public_ip, ip},
+                           {available_sensor, boolean},
+                           {machine_ip, ip},
+                           {allow_connect, boolean},
+                           {admin_only, boolean}]);
 request(U, delmachine, A) ->
     api(U, delmachine, A, [{machine, atom}], require_admin);
 request(_, _, _) ->
@@ -218,6 +227,19 @@ addmachine(_, MachineAtom, MachineName, MachinePassword, MachinePublicIP, Machin
                                          admin_only = MachineAdminOnly}) of
         ok -> ok(true);
         _  -> error(unknown_error)
+    end.
+
+modmachine(_, MachineAtom, MachineName, MachinePassword, MachinePublicIP, MachineAvailableSensor, MachineIP, MachineAllowConnect, MachineAdminOnly) ->
+    case drink_machines_sup:mod(#machine{machine = MachineAtom,
+                                         password = MachinePassword,
+                                         name = MachineName,
+                                         public_ip = MachinePublicIP,
+                                         available_sensor = MachineAvailableSensor,
+                                         machine_ip = MachineIP,
+                                         allow_connect = MachineAllowConnect,
+                                         admin_only = MachineAdminOnly}) of
+        ok -> ok(true);
+        _ -> error(unknown_error)
     end.
 
 delmachine(_, Machine) ->

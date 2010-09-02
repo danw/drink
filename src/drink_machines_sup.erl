@@ -27,7 +27,7 @@
 -behaviour (supervisor).
 
 -export ([start_link/0, init/1]).
--export ([machines/0, is_machine/1, add/1, del/1]).
+-export ([machines/0, is_machine/1, add/1, mod/1, del/1]).
 
 -include ("drink_mnesia.hrl").
 -include_lib ("stdlib/include/qlc.hrl").
@@ -76,6 +76,23 @@ add(Machine = #machine{}) ->
             end;
         _ ->
             {error, mnesia}
+    end.
+
+mod(Machine) ->
+    case drink_machine:modify_machine(Machine) of
+        ok ->
+            case mnesia:transaction(fun() -> mnesia:write(Machine) end) of
+                {atomic, ok} ->
+                    dw_events:send(drink, {machine_modified, Machine}),
+                    ok;
+                Reason ->
+                    % TODO: Revert the drink_machine instance?
+                    error_logger:error_msg("drink_machines_sup:mod(mnesia) -> ~p~n", [Reason]),
+                    {error, mnesia}
+            end;
+        Reason ->
+            error_logger:error_msg("drink_machines_sup:mod -> ~p~n", [Reason]),
+            {error, modification_failed}
     end.
 
 del(Machine) ->

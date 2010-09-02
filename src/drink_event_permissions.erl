@@ -66,8 +66,10 @@ filter_event_user(drink, UserRef, {user_changed, Username, Changes}) ->
         _ ->
             false
     end;
-filter_event_user(drink, UserRef, {machine_added, Machine = #machine{ admin_only = true }}) -> false;
-%We don't have full info here... and can't get it, because it's gone
+% TODO: this only comes with the machineatom, not the full struct
+%filter_event_user(drink, UserRef, {machine_added, Machine = #machine{ admin_only = true }}) -> false;
+filter_event_user(drink, UserRef, {machine_modified, Machine = #machine{ admin_only = true }}) -> false;
+% TODO: We don't have full info here... and can't get it, because it's gone
 %filter_event_user(drink, UserRef, {machine_deleted, Machine = #machine{ admin_only = true }}) -> false;
 % TODO: filter temps for admin_only machines?
 filter_event_user(drink, _, Event) ->

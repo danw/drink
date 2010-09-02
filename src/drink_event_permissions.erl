@@ -66,12 +66,9 @@ filter_event_user(drink, UserRef, {user_changed, Username, Changes}) ->
         _ ->
             false
     end;
-filter_event_user(drink, UserRef, Event = {machine, Machine}) ->
-    case Machine#machine.admin_only of
-        true -> false;
-        false -> 
-            {ok, Event}
-    end;
+filter_event_user(drink, UserRef, {machine_added, Machine = #machine{ admin_only = true }}) -> false;
+%We don't have full info here... and can't get it, because it's gone
+%filter_event_user(drink, UserRef, {machine_deleted, Machine = #machine{ admin_only = true }}) -> false;
 % TODO: filter temps for admin_only machines?
 filter_event_user(drink, _, Event) ->
     %error_logger:error_msg("default user OK~n"),

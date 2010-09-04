@@ -61,14 +61,22 @@ args(A, [{H,Type}|T]) ->
         false -> {error, {arg_missing, H}};
         {H, V} ->
             case arg(Type, V) of
-                {ok, Val} -> [Val] ++ args(A, T);
+                {ok, Val} -> 
+                    case args(A, T) of
+                        {error, Reason} -> {error, Reason};
+                        Args -> [Val] ++ Args
+                    end;
                 _ -> {error, {invalid_arg, H}}
             end
     end;
 args(A, [{H}|T]) ->
     case lists:keyfind(H, 1, A) of
         false -> {error, {arg_missing, H}};
-        {H, V} -> [V] ++ args(A, T)
+        {H, V} -> 
+            case args(A, T) of
+                {error, Reason} -> {error, Reason};
+                Args -> [V] ++ Args
+            end
     end.
 
 request(U, currentuser, _) ->
@@ -129,7 +137,10 @@ api(UserRef, Api, A, Args, require_admin) ->
 
 api(UserRef, Api, A, Args) ->
     error_logger:error_msg("Got args: ~p~n", [[UserRef] ++ args(A, Args)]),
-    apply(?MODULE, Api, [UserRef] ++ args(A, Args)).
+    case args(A, Args) of
+        {error, Reason} -> {error, Reason};
+        Arguments -> apply(?MODULE, Api, [UserRef] ++ Arguments)
+    end.
 
 currentuser(U) ->
     userref_to_struct(U).

@@ -51,20 +51,24 @@ initialize() ->
         {record_name, slot},
         {index, [num]},
         {attributes, record_info(fields, slot)}]) of
-        {atomic, ok} -> ok;
+        {atomic, ok} -> init_test_slots(), ok;
         {aborted, {already_exists, _}} -> ok;
         Er -> error_logger:error_msg("Got mnesia error: ~p~n", [Er])
     end.
 
 init_test_machines() ->
-    add_machine(#machine{ machine=test,
-                          password="Testing",
-                          name="Test Machine",
-                          public_ip={192,168,0,1},
-                          machine_ip={192,168,0,1},
-                          available_sensor=true,
-                          allow_connect=true,
-                          admin_only=true }).
+    add_row(#machine{ machine=test,
+                      password="Testing",
+                      name="Test Machine",
+                      public_ip={192,168,0,1},
+                      machine_ip={192,168,0,1},
+                      available_sensor=true,
+                      allow_connect=true,
+                      admin_only=true }).
 
-add_machine(M) ->
-    mnesia:transaction(fun() -> mnesia:write(M) end).
+init_test_slots() ->
+    add_row(#slot{ machine=test, num=0, name="Dr Pepper", price=35, avail=1, disabled=false }),
+    add_row(#slot{ machine=test, num=1, name="Disabled", price=35, avail=1, disabled=true }),
+    add_row(#slot{ machine=test, num=2, name="Sprite", price=1000, avail=20, disabled=false }).
+
+add_row(R) -> mnesia:transaction(fun() -> mnesia:write(R) end).

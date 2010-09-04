@@ -40,7 +40,7 @@ initialize() ->
         {record_name, machine},
         {index, [password]},
         {attributes, record_info(fields, machine)}]) of
-        {atomic, ok} -> ok;
+        {atomic, ok} -> init_test_machines(), ok;
         {aborted, {already_exists, _}} -> ok;
         E -> error_logger:error_msg("Got mnesia error: ~p~n", [E])
     end,
@@ -55,3 +55,16 @@ initialize() ->
         {aborted, {already_exists, _}} -> ok;
         Er -> error_logger:error_msg("Got mnesia error: ~p~n", [Er])
     end.
+
+init_test_machines() ->
+    add_machine(#machine{ machine=test,
+                          password="Testing",
+                          name="Test Machine",
+                          public_ip={192,168,0,1},
+                          machine_ip={192,168,0,1},
+                          available_sensor=true,
+                          allow_connect=true,
+                          admin_only=true }).
+
+add_machine(M) ->
+    mnesia:transaction(fun() -> mnesia:write(M) end).

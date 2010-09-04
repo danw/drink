@@ -318,6 +318,7 @@ slots([S|Slots]) ->
 
 slot_info(Slot) ->
     {struct, [
+        {num, Slot#slot.num},
         {name, Slot#slot.name},
         {price, Slot#slot.price},
         {available, Slot#slot.avail},

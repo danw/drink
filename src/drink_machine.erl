@@ -148,7 +148,7 @@ handle_call ({temp}, _From, State) ->
         Temp ->
             {reply, {ok, Temp}, State}
     end;
-handle_call ({pasword}, _From, State) ->
+handle_call ({password}, _From, State) ->
     {reply, {ok, (State#dmstate.record)#machine.password}, State};
 handle_call ({public_ip}, _From, State) ->
     {reply, {ok, (State#dmstate.record)#machine.public_ip}, State};

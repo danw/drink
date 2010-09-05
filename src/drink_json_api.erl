@@ -28,7 +28,7 @@
 -export ([request/3]).
 -export ([machine_stat/2, slot_stat/1]).
 
--export ([currentuser/1, drop/3, logs/3, machines/1, moduser/5, setslot/7, 
+-export ([currentuser/1, drop/3, logs/3, machines/1, moduser/5, addslot/7, setslot/7, delslot/3,
           temperatures/3, userinfo/2, addmachine/9, modmachine/9, delmachine/2]).
 
 -include ("user.hrl").
@@ -94,13 +94,23 @@ request(U, moduser, A) ->
                         {attr, atom},
                         {value},
                         {reason}]);
+request(U, addslot, A) ->
+    api(U, addslot, A, [{machine, atom},
+                        {slot, integer},
+                        {name},
+                        {price, integer},
+                        {available, integer},
+                        {disabled, boolean}], require_admin);
 request(U, setslot, A) ->
     api(U, setslot, A, [{machine, atom},
                         {slot, integer},
                         {name},
                         {price, integer},
-                        {avail, integer},
+                        {available, integer},
                         {disabled, boolean}], require_admin);
+request(U, delslot, A) ->
+    api(U, delslot, A, [{machine, atom},
+                        {slot, integer}], require_admin);
 request(U, temperatures, A) ->
     api(U, temperatures, A, [{from, integer},
                              {length, integer}]);
@@ -188,6 +198,23 @@ moduser(U, UserName, Attr, Value, ModReason) ->
             error(unknown)
     end.
 
+addslot(U, Machine, Slot, Name, Price, Avail, Disabled) ->
+    case drink_machine:add_slot(#slot{
+        machine = Machine,
+        num = Slot,
+        name = Name,
+        price = Price,
+        avail = Avail,
+        disabled = Disabled
+    }) of
+        ok ->
+            ok(true);
+        {error, permission_denied} ->
+            error(permission_denied);
+        {error, Reason} ->
+            error(Reason)
+    end.
+
 setslot(U, Machine, Slot, Name, Price, Avail, Disabled) ->
     case drink_machine:set_slot_info(U, #slot{
         machine = Machine,
@@ -198,9 +225,17 @@ setslot(U, Machine, Slot, Name, Price, Avail, Disabled) ->
         disabled = Disabled
     }) of
         ok ->
-            ok({struct, dump_machines(user_auth:can_admin(U), drink_machines_sup:machines())});
+            ok(true);
         {error, permission_denied} ->
             error(permission_denied);
+        {error, Reason} ->
+            error(Reason)
+    end.
+
+delslot(U, Machine, Slot) ->
+    case drink_machine:del_slot(Machine, Slot) of
+        ok ->
+            ok(true);
         {error, Reason} ->
             error(Reason)
     end.

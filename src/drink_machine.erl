@@ -32,7 +32,7 @@
 -export ([got_response/2, got_machine_comm/1]).
 -export ([name/1, slots/1, drop/2, temperature/1, slot_info/2, is_alive/1, set_slot_info/2]).
 -export ([password/1, public_ip/1, available_sensor/1, machine_ip/1, allow_connect/1, admin_only/1]).
--export ([modify_machine/1, delete_machine/1]).
+-export ([modify_machine/1, delete_machine/1, add_slot/1, del_slot/2]).
 
 -include ("drink_mnesia.hrl").
 -include_lib ("drink_log/include/drink_log.hrl").
@@ -126,6 +126,22 @@ handle_call ({slot_info, SlotNum}, _From, State) ->
         {aborted, Reason} ->
             {reply, {error, Reason}, State}
     end;
+handle_call ({add_slot, SlotInfo}, _From, State) ->
+    Q = qlc:q([ X || X <- mnesia:table(slot), X#slot.machine =:= State#dmstate.machineid, X#slot.num =:= SlotInfo#slot.num]),
+    case mnesia:transaction(fun() ->
+        case qlc:eval(Q) of
+            [Slot] ->
+                mnesia:abort(slot_exists);
+            _ ->
+                mnesia:write(SlotInfo)
+        end
+    end) of
+        {atomic, _} ->
+            dw_events:send(drink, {slot_added, State#dmstate.record, SlotInfo}),
+            {reply, ok, State};
+        {aborted, Reason} ->
+            {reply, {error, Reason}, State}
+    end;
 handle_call ({set_slot_info, SlotInfo}, _From, State) ->
     Q = qlc:q([ X || X <- mnesia:table(slot), X#slot.machine =:= State#dmstate.machineid, X#slot.num =:= SlotInfo#slot.num]),
     case mnesia:transaction(fun() ->
@@ -139,6 +155,22 @@ handle_call ({set_slot_info, SlotInfo}, _From, State) ->
     end) of
         {atomic, _} ->
             dw_events:send(drink, {slot_modified, State#dmstate.record, SlotInfo}),
+            {reply, ok, State};
+        {aborted, Reason} ->
+            {reply, {error, Reason}, State}
+    end;
+handle_call ({del_slot, SlotNum}, _From, State) ->
+    Q = qlc:q([ X || X <- mnesia:table(slot), X#slot.machine =:= State#dmstate.machineid, X#slot.num =:= SlotNum]),
+    case mnesia:transaction(fun() ->
+        case qlc:eval(Q) of
+            [Slot] ->
+                mnesia:delete_object(Slot);
+            _ ->
+                mnesia:abort(invalid_slot)
+        end
+    end) of
+        {atomic, _} ->
+            dw_events:send(drink, {slot_deleted, State#dmstate.record, SlotNum}),
             {reply, ok, State};
         {aborted, Reason} ->
             {reply, {error, Reason}, State}
@@ -275,12 +307,21 @@ slot_info (MachinePid, Slot) when is_integer(Slot) ->
 set_slot_info (UserRef, SlotInfo = #slot{machine = MachinePid, num = SlotNum, name = Name, price = Price, avail = Avail, disabled = Disabled}) 
         when is_reference(UserRef), is_atom(MachinePid), is_integer(SlotNum), is_list(Name), is_integer(Price), is_integer(Avail),
              is_atom(Disabled), Price >= 0, Avail >= 0, SlotNum >= 0 ->
+    % TODO: remove this can_admin call
     case user_auth:can_admin(UserRef) of
         true ->
             safe_gen_call(MachinePid, {set_slot_info, SlotInfo});
         false ->
             {error, permission_denied}
     end.
+
+add_slot (SlotInfo = #slot{machine = MachinePid, num = SlotNum, name = Name, price = Price, avail = Avail, disabled = Disabled})
+        when is_atom(MachinePid), is_integer(SlotNum), is_list(Name), is_integer(Price), is_integer(Avail),
+             is_atom(Disabled), Price >= 0, Avail >= 0, SlotNum >= 0 ->
+    safe_gen_call(MachinePid, {add_slot, SlotInfo}).
+
+del_slot (MachinePid, SlotNum) ->
+    safe_gen_call(MachinePid, {del_slot, SlotNum}).
 
 is_alive (Machine) when is_atom(Machine) ->
     case safe_gen_call(Machine, {is_alive}) of

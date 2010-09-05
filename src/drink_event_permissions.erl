@@ -71,7 +71,9 @@ filter_event_user(drink, UserRef, {user_changed, Username, Changes}) ->
 filter_event_user(drink, _, {machine_modified, Machine = #machine{ admin_only = true }}) -> false;
 % TODO: We don't have full info here... and can't get it, because it's gone
 %filter_event_user(drink, _, {machine_deleted, Machine = #machine{ admin_only = true }}) -> false;
+filter_event_user(drink, _, {slot_added, Machine = #machine{ admin_only = true }, _SlotInfo}) -> false;
 filter_event_user(drink, _, {slot_modified, Machine = #machine{ admin_only = true }, _SlotInfo}) -> false;
+filter_event_user(drink, _, {slot_deleted, Machine = #machine{ admin_only = true }, _SlotInfo}) -> false;
 % TODO: filter temps for admin_only machines?
 filter_event_user(drink, _, Event) ->
     %error_logger:error_msg("default user OK~n"),

@@ -71,7 +71,7 @@ loop (waiting_for_auth, State) ->
                     end;
                 {error, Reason} ->  % Invalid auth token
                     send(machine_nack, Socket),
-                    error_logger:error_msg("Bad machine password(~p) ~p", [Reason, Data]),
+                    error_logger:error_msg("Bad machine password(~p) ~p from ~p", [Reason, binary_to_list(Data) -- "\r\n", Remote]),
                     exit(Reason)
             end;
         {tcp, Socket, _} ->
@@ -121,9 +121,7 @@ send_command(MachineComm, Command) ->
     MachineComm ! {send, self(), Command}.
 
 % Looking up a machine - Address, Password
-machine_lookup(From, Pass) when is_list(Pass) ->
-    machine_lookup(From, list_to_atom(Pass));
-machine_lookup({Address, _Port}, Pass) when is_atom(Pass) ->
+machine_lookup({Address, _Port}, Pass) when is_list(Pass) ->
     Q = qlc:q([ X#machine.machine || X <- mnesia:table(machine),
                                                   X#machine.password =:= Pass,
                                                   X#machine.machine_ip =:= Address ]),

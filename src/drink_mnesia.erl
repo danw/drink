@@ -58,10 +58,10 @@ initialize() ->
 
 init_test_machines() ->
     add_row(#machine{ machine=test,
-                      password="Testing",
+                      password="password",
                       name="Test Machine",
-                      public_ip={192,168,0,1},
-                      machine_ip={192,168,0,1},
+                      public_ip={192,168,1,2},
+                      machine_ip={192,168,1,2},
                       available_sensor=true,
                       allow_connect=true,
                       admin_only=true }).

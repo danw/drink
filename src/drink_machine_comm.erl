@@ -39,6 +39,7 @@ start_link () ->
     spawn_link(?MODULE, init, [self()]).
 
 init (_Parent) ->
+    process_flag(trap_exit, true),
     loop(waiting_for_socket, #dmcomm_state{}).
 
 loop (waiting_for_socket, State) ->
@@ -57,15 +58,17 @@ loop (waiting_for_auth, State) ->
             {ok, Remote} = inet:peername(Socket),
             case machine_lookup(Remote, binary_to_list(Data) -- "\r\n") of
                 {ok, MachineId} ->  % Got a valid machine
-                    send(machine_ack, Socket),
                     inet:setopts(Socket, [{active, once}]),
                     case drink_machine:got_machine_comm(MachineId) of
                         {error, connection_refused} ->
+                            send(machine_nack, Socket),
                             exit(connection_refused);
                         {error, Reason} ->
+                            send(machine_nack, Socket),
                             error_logger:error_msg("Failure connecting machine: ~p", [Reason]),
                             exit(Reason);
                         {ok, Pid} ->
+                            send(machine_ack, Socket),
                             link(Pid),
                             loop(normal_op, State#dmcomm_state{machine=Pid})
                     end;
@@ -89,7 +92,11 @@ loop (waiting_for_auth, State) ->
 
 loop (normal_op, State) ->
     #dmcomm_state{socket=Socket,machine=Machine} = State,
+    Self = self(),
     receive
+        {'EXIT', Self, Reason} ->
+            error_logger:error_msg("Triggered exit: ~p", [Reason]),
+            exit(Reason);
         {'EXIT', Machine, Reason} ->
             error_logger:error_msg("Machine Exited: ~p", [Reason]),
             exit(Reason);

@@ -137,6 +137,7 @@ handle_call ({set_slot_info, SlotInfo}, _From, State) ->
         end
     end) of
         {atomic, _} ->
+            dw_events:send(drink, {slot_modified, State#dmstate.record, SlotInfo}),
             {reply, ok, State};
         {aborted, Reason} ->
             {reply, {error, Reason}, State}

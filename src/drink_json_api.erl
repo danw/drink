@@ -26,7 +26,7 @@
 -module (drink_json_api).
 
 -export ([request/3]).
--export ([machine_stat/2]).
+-export ([machine_stat/2, slot_stat/1]).
 
 -export ([currentuser/1, drop/3, logs/3, machines/1, moduser/5, setslot/7, 
           temperatures/3, userinfo/2, addmachine/9, modmachine/9, delmachine/2]).
@@ -98,8 +98,8 @@ request(U, setslot, A) ->
     api(U, setslot, A, [{machine, atom},
                         {slot, integer},
                         {name},
-                        {price},
-                        {avail, boolean},
+                        {price, integer},
+                        {avail, integer},
                         {disabled, boolean}], require_admin);
 request(U, temperatures, A) ->
     api(U, temperatures, A, [{from, integer},
@@ -314,9 +314,9 @@ machine_attr(Machine, Attr, Default) ->
 slots([]) ->
     [];
 slots([S|Slots]) ->
-    [{integer_to_list(S#slot.num),slot_info(S)}] ++ slots(Slots).
+    [{integer_to_list(S#slot.num), slot_stat(S)}] ++ slots(Slots).
 
-slot_info(Slot) ->
+slot_stat(Slot) ->
     {struct, [
         {num, Slot#slot.num},
         {name, Slot#slot.name},

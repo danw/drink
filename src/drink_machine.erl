@@ -50,6 +50,7 @@ start_link (MachineId) ->
 init (MachineId) ->
     case mnesia:transaction(fun() -> mnesia:read({machine, MachineId}) end) of
         {atomic, [MachineRecord]} ->
+            process_flag(trap_exit, true),
             State = #dmstate{
                 machineid = MachineId,
                 record = MachineRecord
@@ -170,6 +171,7 @@ handle_call ({got_comm, CommPid}, _From, State = #dmstate{record = #machine{allo
             exit(Pid, machine_reconnect)
     end,
     link(CommPid),
+    dw_events:send(drink, {machine_connected, (State#dmstate.record)#machine.machine}),
     {reply, {ok, self()}, State#dmstate{commpid = CommPid}};
 handle_call ({got_comm, _CommPid}, _From, State) ->
     {reply, {error, connection_refused}, State};
@@ -209,7 +211,12 @@ handle_info ({got_response, CommPid, Response}, State = #dmstate{commpid = CommP
             {noreply, State}
     end;
 handle_info ({'EXIT', CommPid, _Reason}, State = #dmstate{commpid = CommPid}) ->
+    dw_events:send(drink, {machine_disconnected, (State#dmstate.record)#machine.machine}),
     {noreply, State#dmstate{commpid = nil}};
+handle_info ({'EXIT', Pid, Reason}, State) ->
+    error_logger:error_msg("Unknown exit: ~p, ~p~n", [Pid, Reason]),
+    error_logger:error_msg("Current CommPid: ~p~n", [State#dmstate.commpid]),
+    {noreply, State};
 handle_info ({timeout, _DropRef}, State) ->
     {noreply, State};
 handle_info (_, State) ->

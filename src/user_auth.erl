@@ -107,7 +107,7 @@ handle_call ({drop, UserRef, Machine, Slot}, _From, State) when is_reference(Use
 																is_atom(Machine), is_integer(Slot) ->
 	case get_from_ref(UserRef, State) of
 		{ok, UserInfo, Perms} ->
-			case can_drop(Perms) of
+			case can_drop(drink_machine:admin_only(Machine), UserInfo, Perms) of
 				true -> 
 					case {drink_machine:is_alive(Machine), drink_machine:slot_info(Machine, Slot)} of
 						{true, {ok, SlotInfo}} when SlotInfo#slot.avail > 0 ->
@@ -482,7 +482,11 @@ drop_slot(UserInfo, Machine, Slot, State) when is_tuple(UserInfo), is_atom(Machi
 			{error, Reason}
 	end.
 
-can_drop(Perms) ->
+can_drop({ok, false}, UserInfo, Perms) ->
+    lists:member(drop, Perms);
+can_drop({ok, true}, UserInfo = #user{ admin = false }, Perms) ->
+    false;
+can_drop({ok, true}, UserInfo = #user{ admin = true }, Perms) ->
     lists:member(drop, Perms).
 
 can_write(Perms) ->

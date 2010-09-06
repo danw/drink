@@ -27,6 +27,7 @@
 
 -export ([request/3]).
 -export ([machine_stat/2, slot_stat/1]).
+-export ([format_time/1]).
 
 -export ([currentuser/1, drop/3, logs/3, machines/1, moduser/5, addslot/7, setslot/7, delslot/3,
           temperatures/3, userinfo/2, addmachine/9, modmachine/9, delmachine/2]).
@@ -424,8 +425,7 @@ format_logs(Start, Length, Data) ->
 format_log(Line = #money_log{}) ->
     {struct, [
         {type, "money"},
-        {time, calendar:datetime_to_gregorian_seconds(Line#money_log.time) - 
-                calendar:datetime_to_gregorian_seconds({{1970, 1, 1},{0, 0, 0}})},
+        {time, format_time(Line#money_log.time)},
         {username, Line#money_log.username},
         {admin, Line#money_log.admin},
         {amount, Line#money_log.amount},
@@ -438,8 +438,7 @@ format_log(Line = #drop_log{}) ->
         {machine, atom_to_list(Line#drop_log.machine)},
         {slot, Line#drop_log.slot},
         {username, Line#drop_log.username},
-        {time, calendar:datetime_to_gregorian_seconds(Line#drop_log.time) - 
-                calendar:datetime_to_gregorian_seconds({{1970, 1, 1},{0, 0, 0}})},
+        {time, format_time(Line#drop_log.time)},
         {status, Line#drop_log.status}
     ]}.
 
@@ -451,5 +450,8 @@ format_temps(Start, Length, Data) -> % TODO: don't hardcode bigdrink and littled
             lists:filter(fun(E) -> E#temperature.machine =:= littledrink end, Data))}}]}}]}.
 
 format_temp(Temp = #temperature{}) ->
-    {array, [calendar:datetime_to_gregorian_seconds(Temp#temperature.time) - 
-     calendar:datetime_to_gregorian_seconds({{1970, 1, 1}, {0, 0, 0}}), Temp#temperature.temperature]}.
+    {array, [format_time(Temp#temperature.time), Temp#temperature.temperature]}.
+
+format_time(Time) ->
+    calendar:datetime_to_gregorian_seconds(Time) -
+    calendar:datetime_to_gregorian_seconds({{1970,1,1}, {0,0,0}}).

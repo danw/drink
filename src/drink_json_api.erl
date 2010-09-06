@@ -303,6 +303,11 @@ error(Reason) ->
 
 dump_machines(_Admin, []) ->
     [];
+dump_machines(false, [M|Machines]) ->
+    case drink_machine:admin_only(M) of
+        {ok, true} -> dump_machines(false, Machines);
+        _ -> [{M, machine_stat(false, M)}] ++ dump_machines(false, Machines)
+    end;
 dump_machines(Admin, [M|Machines]) when is_boolean(Admin) ->
     [{M, machine_stat(Admin, M)}] ++ dump_machines(Admin, Machines).
 

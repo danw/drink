@@ -71,7 +71,7 @@ add(Machine = #machine{}) ->
                     error_logger:error_msg("Error starting machine ~p: ~p~n", [Machine#machine.machine, E]),
                     {error, E};
                 {ok, _} ->
-                    dw_events:send(drink, {machine_added, Machine#machine.machine}),
+                    dw_events:send(drink, {machine_added, Machine}),
                     ok
             end;
         _ ->
@@ -80,10 +80,10 @@ add(Machine = #machine{}) ->
 
 mod(Machine) ->
     case drink_machine:modify_machine(Machine) of
-        ok ->
+        {ok, OldMachine} ->
             case mnesia:transaction(fun() -> mnesia:write(Machine) end) of
                 {atomic, ok} ->
-                    dw_events:send(drink, {machine_modified, Machine}),
+                    dw_events:send(drink, {machine_modified, OldMachine, Machine}),
                     ok;
                 Reason ->
                     % TODO: Revert the drink_machine instance?
@@ -97,10 +97,10 @@ mod(Machine) ->
 
 del(Machine) ->
     case drink_machine:delete_machine(Machine) of
-        ok ->
+        {ok, OldInfo} ->
             case mnesia:transaction(fun() -> mnesia:delete({machine, Machine}) end) of
                 {atomic, ok} ->
-                    dw_events:send(drink, {machine_deleted, Machine}),
+                    dw_events:send(drink, {machine_deleted, OldInfo}),
                     ok;
                 Reason ->
                     error_logger:error_msg("drink_machines_sup:del(mnesia) -> ~p~n", [Reason]),

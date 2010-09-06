@@ -66,11 +66,14 @@ filter_event_user(drink, UserRef, {user_changed, Username, Changes}) ->
         _ ->
             false
     end;
-% TODO: this only comes with the machineatom, not the full struct
-%filter_event_user(drink, _, {machine_added, Machine = #machine{ admin_only = true }}) -> false;
-filter_event_user(drink, _, {machine_modified, Machine = #machine{ admin_only = true }}) -> false;
-% TODO: We don't have full info here... and can't get it, because it's gone
-%filter_event_user(drink, _, {machine_deleted, Machine = #machine{ admin_only = true }}) -> false;
+filter_event_user(drink, _, {machine_added, Machine = #machine{ admin_only = true }}) -> false;
+% TODO: handle diffs between admin_only
+filter_event_user(drink, _, {machine_modified, OldMachine = #machine{ admin_only = true }, Machine = #machine{ admin_only = false }}) ->
+    {ok, {machine_added, Machine}};
+filter_event_user(drink, _, {machine_modified, OldMachine = #machine{ admin_only = false }, Machine = #machine{ admin_only = true }}) ->
+    {ok, {machine_deleted, OldMachine}};
+filter_event_user(drink, _, {machine_modified, _OldMachine, Machine = #machine{ admin_only = true }}) -> false;
+filter_event_user(drink, _, {machine_deleted, Machine = #machine{ admin_only = true }}) -> false;
 filter_event_user(drink, _, {slot_added, Machine = #machine{ admin_only = true }, _SlotInfo}) -> false;
 filter_event_user(drink, _, {slot_modified, Machine = #machine{ admin_only = true }, _SlotInfo}) -> false;
 filter_event_user(drink, _, {slot_deleted, Machine = #machine{ admin_only = true }, _SlotInfo}) -> false;

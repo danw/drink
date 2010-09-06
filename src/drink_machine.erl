@@ -212,14 +212,14 @@ handle_call ({is_alive}, _From, State = #dmstate{commpid = nil}) ->
 handle_call ({is_alive}, _From, State) ->
     {reply, true, State};
 handle_call ({delete_machine}, _From, State) ->
-    {stop, {shutdown, delete_machine}, ok, State};
+    {stop, {shutdown, delete_machine}, {ok, State#dmstate.record}, State};
 handle_call ({modify_machine, Machine}, _From, State) ->
     case {Machine#machine.allow_connect, State#dmstate.commpid} of
         {false, Pid} when is_pid(Pid) -> exit(Pid, connection_refused);
         _ -> ok
     end,
     % Deal with allow_connect
-    {reply, ok, State#dmstate{ record = Machine }};
+    {reply, {ok, State#dmstate.record}, State#dmstate{ record = Machine }};
 handle_call (_Request, _From, State) ->
     {reply, {error, unknown}, State}.
 

@@ -443,11 +443,15 @@ format_log(Line = #drop_log{}) ->
     ]}.
 
 format_temps(Start, Length, Data) -> % TODO: don't hardcode bigdrink and littledrink
-    {struct, [{start, Start}, {length, Length}, {machines, {struct, [
-        {bigdrink, {array, lists:map(fun format_temp/1,
-            lists:filter(fun(E) -> E#temperature.machine =:= bigdrink end, Data))}},
-        {littledrink, {array, lists:map(fun format_temp/1,
-            lists:filter(fun(E) -> E#temperature.machine =:= littledrink end, Data))}}]}}]}.
+    {struct, [{start, Start}, {length, Length}, {machines, {struct, 
+        [ temperature_data(M, Data) || M <- temperature_machines(Data) ]}}]}.
+
+temperature_machines(Data) ->
+    lists:usort([ X#temperature.machine || X <- Data ]).
+
+temperature_data(Machine, Data) ->
+    {Machine, {array, lists:map(fun format_temp/1,
+        lists:filter(fun(E) -> E#temperature.machine =:= Machine end, Data))}}.
 
 format_temp(Temp = #temperature{}) ->
     {array, [format_time(Temp#temperature.time), Temp#temperature.temperature]}.

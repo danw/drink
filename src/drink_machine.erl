@@ -405,25 +405,29 @@ update_slot_status(Status, State = #dmstate{record = MachineInfo}) ->
 update_slot_status_mnesia(_Machine, []) ->
     ok;
 update_slot_status_mnesia(Machine, [{Slot, Status} | T]) ->
-    [SlotInfo] = qlc:eval(qlc:q([ X || X <- mnesia:table(slot), X#slot.machine =:= Machine, X#slot.num =:= Slot ])),
-    case Status of
-        1 ->
-            case SlotInfo#slot.avail of
-                0 ->
-                    NewSlotInfo = SlotInfo#slot{avail = 1},
-                    mnesia:delete_object(SlotInfo),
-                    mnesia:write(NewSlotInfo);
-                _X ->
-                    ok
-            end;
-        0 ->
-            case SlotInfo#slot.avail of
-                0 ->
-                    ok;
-                _X ->
-                    NewSlotInfo = SlotInfo#slot{avail = 0},
-                    mnesia:delete_object(SlotInfo),
-                    mnesia:write(NewSlotInfo)
-            end
-    end,
-    update_slot_status_mnesia(Machine, T).
+	case qlc:eval(qlc:q([ X || X <- mnesia:table(slot), X#slot.machine =:= Machine, X#slot.num =:= Slot ])) of
+		[SlotInfo] ->
+			case Status of
+				1 ->
+					case SlotInfo#slot.avail of
+						0 ->
+							NewSlotInfo = SlotInfo#slot{avail = 1},
+							mnesia:delete_object(SlotInfo),
+							mnesia:write(NewSlotInfo);
+						_X ->
+							ok
+					end;
+				0 ->
+					case SlotInfo#slot.avail of
+						0 ->
+							ok;
+						_X ->
+							NewSlotInfo = SlotInfo#slot{avail = 0},
+							mnesia:delete_object(SlotInfo),
+							mnesia:write(NewSlotInfo)
+					end
+			end;
+		[] -> % Slot not found
+			ok
+	end,
+	update_slot_status_mnesia(Machine, T).

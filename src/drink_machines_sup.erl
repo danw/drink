@@ -96,8 +96,10 @@ mod(Machine) ->
     end.
 
 del(Machine) ->
-    case drink_machine:delete_machine(Machine) of
+    case drink_machine:get_info(Machine) of
         {ok, OldInfo} ->
+            supervisor:terminate_child(?MODULE, [Machine]),
+            supervisor:delete_child(?MODULE, [Machine]),
             case mnesia:transaction(fun() -> mnesia:delete({machine, Machine}) end) of
                 {atomic, ok} ->
                     dw_events:send(drink, {machine_deleted, OldInfo}),

@@ -32,7 +32,7 @@
 -export ([got_response/2, got_machine_comm/1]).
 -export ([name/1, slots/1, drop/2, temperature/1, slot_info/2, is_alive/1, set_slot_info/2]).
 -export ([password/1, public_ip/1, available_sensor/1, machine_ip/1, allow_connect/1, admin_only/1]).
--export ([modify_machine/1, delete_machine/1, add_slot/1, del_slot/2]).
+-export ([modify_machine/1, get_info/1, add_slot/1, del_slot/2]).
 
 -include ("drink_mnesia.hrl").
 -include_lib ("drink_log/include/drink_log.hrl").
@@ -211,8 +211,8 @@ handle_call ({is_alive}, _From, State = #dmstate{commpid = nil}) ->
     {reply, false, State};
 handle_call ({is_alive}, _From, State) ->
     {reply, true, State};
-handle_call ({delete_machine}, _From, State) ->
-    {stop, {shutdown, delete_machine}, {ok, State#dmstate.record}, State};
+handle_call ({get_info}, _From, State) ->
+    {reply, {ok, State#dmstate.record}, State};
 handle_call ({modify_machine, Machine}, _From, State) ->
     case {Machine#machine.allow_connect, State#dmstate.commpid} of
         {false, Pid} when is_pid(Pid) -> exit(Pid, connection_refused);
@@ -334,8 +334,8 @@ is_alive (Machine) when is_atom(Machine) ->
 modify_machine (Machine) ->
     safe_gen_call(Machine#machine.machine, {modify_machine, Machine}).
 
-delete_machine (Machine) ->
-    safe_gen_call(Machine, {delete_machine}).
+get_info (Machine) ->
+    safe_gen_call(Machine, {get_info}).
 
 temperature (MachinePid) ->
     safe_gen_call(MachinePid, {temp}).

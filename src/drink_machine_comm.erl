@@ -106,6 +106,7 @@ loop (normal_op, State) ->
             loop(normal_op, State);
         {tcp, Socket, Data} ->
             case receive_response(Data, State) of
+                noop -> ok;
                 {ok, Response} ->
                     drink_machine:got_response(State#dmcomm_state.machine, Response);
                 {error, Reason} ->
@@ -190,5 +191,7 @@ receive_response(<<$8, Remain/binary>>, _State) ->
         {Temperature, _Rest} ->
             {ok, {temperature, erlang:universaltime(), Temperature}}
     end;
+receive_response(<<$9, _/binary>>, _State) ->
+    noop;
 receive_response(_Data, _State) ->
     {error, unknown}.
